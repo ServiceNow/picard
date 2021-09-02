@@ -1,6 +1,7 @@
 GIT_HEAD_REF := $(shell git rev-parse HEAD)
 
-BASE_IMAGE_NAME := pytorch/pytorch:1.8.1-cuda11.1-cudnn8-devel
+BASE_IMAGE := pytorch/pytorch:1.8.1-cuda11.1-cudnn8-devel
+
 DEV_IMAGE_NAME := text-to-sql-dev
 TRAIN_IMAGE_NAME := text-to-sql-train
 EVAL_IMAGE_NAME := text-to-sql-eval
@@ -45,11 +46,10 @@ build-dev-image:
 	docker buildx build \
 		--builder $(BUILDKIT_BUILDER) \
 		--ssh default=$(SSH_AUTH_SOCK) \
-		--secret id=env,src=.dockerenv \
 		-f Dockerfile \
-		--tag $(DEV_IMAGE_NAME):$(GIT_HEAD_REF) \
+		--tag tscholak/$(DEV_IMAGE_NAME):$(GIT_HEAD_REF) \
 		--tag tscholak/$(DEV_IMAGE_NAME):cache \
-		--build-arg BASE_IMAGE=$(BASE_IMAGE_NAME) \
+		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
 		--target dev \
 		--cache-from type=registry,ref=tscholak/$(DEV_IMAGE_NAME):cache \
 		--cache-to type=inline \
@@ -66,7 +66,6 @@ build-train-image:
 	docker buildx build \
 		--builder $(BUILDKIT_BUILDER) \
 		--ssh default=$(SSH_AUTH_SOCK) \
-		--secret id=env,src=.dockerenv \
 		-f Dockerfile \
 		--tag $(TRAIN_IMAGE_NAME):$(GIT_HEAD_REF) \
 		--tag tscholak/$(TRAIN_IMAGE_NAME):cache \
@@ -87,7 +86,6 @@ build-eval-image:
 	docker buildx build \
 		--builder $(BUILDKIT_BUILDER) \
 		--ssh default=$(SSH_AUTH_SOCK) \
-		--secret id=env,src=.dockerenv \
 		-f Dockerfile \
 		--tag $(EVAL_IMAGE_NAME):$(GIT_HEAD_REF) \
 		--tag tscholak/$(EVAL_IMAGE_NAME):cache \
