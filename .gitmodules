@@ -1,0 +1,33 @@
+[submodule "third_party/hsthrift"]
+	path = third_party/hsthrift
+	url = https://github.com/facebookincubator/hsthrift
+[submodule "third_party/zstd"]
+	path = third_party/zstd
+	url = https://github.com/facebook/zstd
+[submodule "third_party/wangle"]
+	path = third_party/wangle
+	url = https://github.com/facebook/wangle
+[submodule "third_party/folly"]
+	path = third_party/folly
+	url = https://github.com/facebook/folly
+[submodule "third_party/spider"]
+	path = third_party/spider
+	url = https://github.com/elementai/spider
+[submodule "third_party/test_suite"]
+	path = third_party/test_suite
+	url = https://github.com/elementai/test-suite-sql-eval
+[submodule "third_party/tokenizers"]
+	path = third_party/tokenizers
+	url = https://github.com/hasktorch/tokenizers
+[submodule "third_party/fbthrift"]
+	path = third_party/fbthrift
+	url = https://github.com/facebook/fbthrift
+[submodule "third_party/fmt"]
+	path = third_party/fmt
+	url = https://github.com/fmtlib/fmt
+[submodule "third_party/rsocket-cpp"]
+	path = third_party/rsocket-cpp
+	url = https://github.com/rsocket/rsocket-cpp
+[submodule "third_party/fizz"]
+	path = third_party/fizz
+	url = https://github.com/facebookincubator/fizz
