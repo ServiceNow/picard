@@ -135,6 +135,8 @@ gen-cpp2/*
 gen-py3/*
 !gen-py3/gen-cpp2
 !gen-py3/setup.py
+!gen-py3/picard/
+gen-py3/picard/*
 !gen-py3/picard/__init__.py
 
 # Haskell build artifacts
