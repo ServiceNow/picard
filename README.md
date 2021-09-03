@@ -1,4 +1,32 @@
-# PICARD
+<p align="center">
+    <br>
+    <img src="https://raw.githubusercontent.com/huggingface/transformers/main/imgs/picard_logo.png" width="400"/>
+    <br>
+<p>
+<p align="center">
+    <a href="https://github.com/ElementAI/picard/actions/workflows/dev-image.yml">
+        <img alt="dev image build" src="https://github.com/ElementAI/text-to-sql/actions/workflows/dev-image.yml/badge.svg?branch=main&event=push">
+    </a>
+    <a href="https://github.com/ElementAI/picard/actions/workflows/train-image.yml">
+        <img alt="train image build" src="https://github.com/ElementAI/text-to-sql/actions/workflows/train-image.yml/badge.svg?branch=main&event=push">
+    </a>
+    <a href="https://github.com/ElementAI/picard/actions/workflows/eval-image.yml">
+        <img alt="eval image build" src="https://github.com/ElementAI/text-to-sql/actions/workflows/eval-image.yml/badge.svg?branch=main&event=push">
+    </a>
+    <a href="https://github.com/ElementAI/picard/blob/main/LICENSE">
+        <img alt="GitHub" src="https://img.shields.io/github/license/ElementAI/picard.svg?color=blue">
+    </a>
+    <a href="https://huggingface.co/transformers/index.html">
+        <img alt="Documentation" src="https://img.shields.io/website/http/huggingface.co/transformers/index.html.svg?down_color=red&down_message=offline&up_message=online">
+    </a>
+    <a href="https://github.com/huggingface/transformers/releases">
+        <img alt="GitHub release" src="https://img.shields.io/github/release/huggingface/transformers.svg">
+    </a>
+    <a href="https://github.com/huggingface/transformers/blob/master/CODE_OF_CONDUCT.md">
+        <img alt="Contributor Covenant" src="https://img.shields.io/badge/Contributor%20Covenant-v2.0%20adopted-ff69b4.svg">
+    </a>
+    <a href="https://zenodo.org/badge/latestdoi/155220641"><img src="https://zenodo.org/badge/155220641.svg" alt="DOI"></a>
+</p>
 
 This is the official implementation of the following paper:
 
