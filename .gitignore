@@ -142,8 +142,7 @@ gen-py3/picard/*
 # Haskell build artifacts
 dist-newstyle
 
-# Docker build artifacts
-.dockerenv
-
-# Makefile artifacts
-config.mk
+# Modelling artifacts
+train/*
+eval/*
+transformers_cache/*

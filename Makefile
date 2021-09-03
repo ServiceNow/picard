@@ -99,3 +99,46 @@ build-eval-image:
 .PHONY: pull-eval-image
 	docker pull tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF)
 
+.PHONY: train
+train:
+	docker run \
+		--rm \
+		--user 13011:13011 \
+		--mount type=bind,source=$(pwd)/train,target=/train \
+		--mount type=bind,source=$(pwd)/transformers_cache,target=/transformers_cache \
+		--mount type=bind,source=$(pwd)/configs,target=/app/configs \
+		tscholak/$(TRAIN_IMAGE_NAME):$(GIT_HEAD_REF) \
+		/bin/bash -c "seq2seq/run_seq2seq.py configs/train.json"
+
+.PHONY: train
+train_cosql:
+	docker run \
+		--rm \
+		--user 13011:13011 \
+		--mount type=bind,source=$(pwd)/train,target=/train \
+		--mount type=bind,source=$(pwd)/transformers_cache,target=/transformers_cache \
+		--mount type=bind,source=$(pwd)/configs,target=/app/configs \
+		tscholak/$(TRAIN_IMAGE_NAME):$(GIT_HEAD_REF) \
+		/bin/bash -c "seq2seq/run_seq2seq.py configs/train_cosql.json"
+
+.PHONY: eval
+eval:
+	docker run \
+		--rm \
+		--user 13011:13011 \
+		--mount type=bind,source=$(pwd)/eval,target=/eval \
+		--mount type=bind,source=$(pwd)/transformers_cache,target=/transformers_cache \
+		--mount type=bind,source=$(pwd)/configs,target=/app/configs \
+		tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF) \
+		/bin/bash -c "seq2seq/run_seq2seq.py configs/eval.json"
+
+.PHONY: eval
+eval_cosql:
+	docker run \
+		--rm \
+		--user 13011:13011 \
+		--mount type=bind,source=$(pwd)/eval,target=/eval \
+		--mount type=bind,source=$(pwd)/transformers_cache,target=/transformers_cache \
+		--mount type=bind,source=$(pwd)/configs,target=/app/configs \
+		tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF) \
+		/bin/bash -c "seq2seq/run_seq2seq.py configs/eval_cosql.json"
