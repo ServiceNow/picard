@@ -83,14 +83,14 @@ The default configuration is stored in `configs/eval.json`.
     <th>Test</th>
   </tr>
   <tr>
-    <td>https://huggingface.co/tscholak/cxmefzzi <b>w PICARD</b></td>
+    <td><a href="https://huggingface.co/tscholak/cxmefzzi">tscholak/cxmefzzi</a> <b>w PICARD</b></td>
     <td>75.5 %</td>
     <td>71.9 %</td>
     <td>79.3 %</td>
     <td>75.1 %</td>
   </tr>
   <tr>
-    <td>https://huggingface.co/tscholak/cxmefzzi <b>w/o PICARD</b></td>
+    <td><a href="https://huggingface.co/tscholak/cxmefzzi">tscholak/cxmefzzi</a> <b>w/o PICARD</b></td>
     <td>71.5 %</td>
     <td>68.0 %</td>
     <td>74.4 %</td>
@@ -113,14 +113,14 @@ The default configuration is stored in `configs/eval.json`.
     <th>Test</th>
   </tr>
   <tr>
-    <td>https://huggingface.co/tscholak/2e826ioa <b>w PICARD</b></td>
+    <td><a href="https://huggingface.co/tscholak/2e826ioa">tscholak/2e826ioa</a> <b>w PICARD</b></td>
     <td>56.9 %</td>
     <td>??.? %</td>
     <td>24.2 %</td>
     <td>??.? %</td>
   </tr>
   <tr>
-    <td>https://huggingface.co/tscholak/2e826ioa <b>w/o PICARD</b></td>
+    <td><a href="https://huggingface.co/tscholak/2e826ioa">tscholak/2e826ioa</a> <b>w/o PICARD</b></td>
     <td>??.? %</td>
     <td>??.? %</td>
     <td>??.? %</td>
