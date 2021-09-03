@@ -244,6 +244,9 @@ RUN apt update && \
 # Build Huggingface tokenizers Rust libraries
 COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID third_party/tokenizers /app/third_party/tokenizers/
 RUN cd /app/third_party/tokenizers \
+    && rustup --version \
+    && cargo --version \
+    && rustc --version \
     && cargo build --release \
     && cp target/release/libtokenizers_haskell.so /usr/lib/ \
     && rm -rf target \
