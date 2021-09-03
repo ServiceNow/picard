@@ -47,6 +47,7 @@ build-dev-image:
 		--builder $(BUILDKIT_BUILDER) \
 		--ssh default=$(SSH_AUTH_SOCK) \
 		-f Dockerfile \
+		--tag $(DEV_IMAGE_NAME):$(GIT_HEAD_REF) \
 		--tag tscholak/$(DEV_IMAGE_NAME):$(GIT_HEAD_REF) \
 		--tag tscholak/$(DEV_IMAGE_NAME):cache \
 		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
@@ -68,8 +69,9 @@ build-train-image:
 		--ssh default=$(SSH_AUTH_SOCK) \
 		-f Dockerfile \
 		--tag $(TRAIN_IMAGE_NAME):$(GIT_HEAD_REF) \
+		--tag tscholak/$(TRAIN_IMAGE_NAME):$(GIT_HEAD_REF) \
 		--tag tscholak/$(TRAIN_IMAGE_NAME):cache \
-		--build-arg BASE_IMAGE=$(BASE_IMAGE_NAME) \
+		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
 		--target train \
 		--cache-from type=registry,ref=tscholak/$(TRAIN_IMAGE_NAME):cache \
 		--cache-to type=inline \
@@ -88,8 +90,9 @@ build-eval-image:
 		--ssh default=$(SSH_AUTH_SOCK) \
 		-f Dockerfile \
 		--tag $(EVAL_IMAGE_NAME):$(GIT_HEAD_REF) \
+		--tag tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF) \
 		--tag tscholak/$(EVAL_IMAGE_NAME):cache \
-		--build-arg BASE_IMAGE=$(BASE_IMAGE_NAME) \
+		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
 		--target eval \
 		--cache-from type=registry,ref=tscholak/$(EVAL_IMAGE_NAME):cache \
 		--cache-to type=inline \
