@@ -285,7 +285,7 @@ ENV HF_HOME=/transformers_cache
 
 # Copy Seq-to-seq code
 COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID ./seq2seq /app/seq2seq/
-# COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID ./tests /app/tests/
+COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID ./tests /app/tests/
 COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID ./third_party/spider /app/third_party/spider/
 COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID ./third_party/test_suite /app/third_party/test_suite/
 # COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID ./configs /app/configs/
