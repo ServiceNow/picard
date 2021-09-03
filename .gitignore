@@ -128,10 +128,10 @@ dmypy.json
 .pyre/
 
 # Thrift auto-generated code
-gen-hs
+gen-hs/*
 !gen-hs/picard-gen-hs.cabal
 gen-cpp2/*
-gen-py3
+gen-py3/*
 !gen-py3/gen-cpp2
 !gen-py3/setup.py
 !gen-py3/picard/__init__.py
