@@ -2,7 +2,7 @@ cabal-version: 2.0
 
 name:           picard
 version:        0.2
-synopsis:       Parsing in constrained auto-regressive decoding
+synopsis:       PICARD - Parsing Incrementally for Constrained Auto-Regressive Decoding from Language Models
 build-type:     Simple
 
 library
