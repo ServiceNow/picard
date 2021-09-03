@@ -131,6 +131,7 @@ dmypy.json
 gen-hs/*
 !gen-hs/picard-gen-hs.cabal
 gen-cpp2/*
+!gen-cpp2/.gitkeep
 gen-py3/*
 !gen-py3/gen-cpp2
 !gen-py3/setup.py
