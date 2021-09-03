@@ -1,6 +1,6 @@
 <p align="center">
     <br>
-    <img src="https://raw.githubusercontent.com/huggingface/transformers/main/imgs/picard_logo.png" width="400"/>
+    <img src="https://repository-images.githubusercontent.com/401779782/c2f46be5-b74b-4620-ad64-57487be3b1ab" width="400"/>
     <br>
 <p>
 <p align="center">
@@ -14,18 +14,9 @@
         <img alt="eval image build" src="https://github.com/ElementAI/text-to-sql/actions/workflows/eval-image.yml/badge.svg?branch=main&event=push">
     </a>
     <a href="https://github.com/ElementAI/picard/blob/main/LICENSE">
-        <img alt="GitHub" src="https://img.shields.io/github/license/ElementAI/picard.svg?color=blue">
+        <img alt="license" src="https://img.shields.io/github/license/ElementAI/picard.svg?color=blue">
     </a>
-    <a href="https://huggingface.co/transformers/index.html">
-        <img alt="Documentation" src="https://img.shields.io/website/http/huggingface.co/transformers/index.html.svg?down_color=red&down_message=offline&up_message=online">
-    </a>
-    <a href="https://github.com/huggingface/transformers/releases">
-        <img alt="GitHub release" src="https://img.shields.io/github/release/huggingface/transformers.svg">
-    </a>
-    <a href="https://github.com/huggingface/transformers/blob/master/CODE_OF_CONDUCT.md">
-        <img alt="Contributor Covenant" src="https://img.shields.io/badge/Contributor%20Covenant-v2.0%20adopted-ff69b4.svg">
-    </a>
-    <a href="https://zenodo.org/badge/latestdoi/155220641"><img src="https://zenodo.org/badge/155220641.svg" alt="DOI"></a>
+    <a href="https://zenodo.org/badge/latestdoi/tbd"><img alt="DOI" src="https://zenodo.org/badge/tbd.svg"></a>
 </p>
 
 This is the official implementation of the following paper:
