@@ -4,14 +4,8 @@
     <br>
 <p>
 <p align="center">
-    <a href="https://github.com/ElementAI/picard/actions/workflows/dev-image.yml">
-        <img alt="dev image build" src="https://github.com/ElementAI/text-to-sql/actions/workflows/dev-image.yml/badge.svg?branch=main&event=push">
-    </a>
-    <a href="https://github.com/ElementAI/picard/actions/workflows/train-image.yml">
-        <img alt="train image build" src="https://github.com/ElementAI/text-to-sql/actions/workflows/train-image.yml/badge.svg?branch=main&event=push">
-    </a>
-    <a href="https://github.com/ElementAI/picard/actions/workflows/eval-image.yml">
-        <img alt="eval image build" src="https://github.com/ElementAI/text-to-sql/actions/workflows/eval-image.yml/badge.svg?branch=main&event=push">
+    <a href="https://github.com/ElementAI/picard/actions/workflows/build.yml">
+        <img alt="build" src="https://github.com/ElementAI/picard/actions/workflows/build.yml/badge.svg?branch=main&event=push">
     </a>
     <a href="https://github.com/ElementAI/picard/blob/main/LICENSE">
         <img alt="license" src="https://img.shields.io/github/license/ElementAI/picard.svg?color=blue">
@@ -21,7 +15,7 @@
 
 This is the official implementation of the following paper:
 
-[Torsten Scholak](https://twitter.com/tscholak), Nathan Schucher, Dzmitry Bahdanau. [PICARD - Parsing Incrementally for Constrained Auto-Regressive Decoding from Language Models](). EMNLP 2021.
+[Torsten Scholak](https://twitter.com/tscholak), Nathan Schucher, Dzmitry Bahdanau. [PICARD - Parsing Incrementally for Constrained Auto-Regressive Decoding from Language Models](). *Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing (EMNLP).*
 
 ## Overview
 
