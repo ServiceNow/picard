@@ -62,11 +62,11 @@ jobs:
           tags: |
             tscholak/text-to-sql-train:${{ github.sha }}
             tscholak/text-to-sql-train:cache
-          target: dev
+          target: train
           cache-from: type=registry,ref=tscholak/text-to-sql-train:cache
           cache-to: type=inline
       - name: Build and push eval image
-        id: docker_build_dev
+        id: docker_build_eval
         uses: docker/build-push-action@v2
         with:
           builder: ${{ steps.buildx.outputs.name }}
@@ -76,6 +76,6 @@ jobs:
           tags: |
             tscholak/text-to-sql-eval:${{ github.sha }}
             tscholak/text-to-sql-eval:cache
-          target: dev
+          target: eval
           cache-from: type=registry,ref=tscholak/text-to-sql-eval:cache
           cache-to: type=inline
