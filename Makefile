@@ -101,44 +101,61 @@ build-eval-image:
 
 .PHONY: train
 train:
+	mkdir -p train
+	mkdir -p transformers_cache
+	mkdir -p wandb
 	docker run \
+		-it \
 		--rm \
 		--user 13011:13011 \
-		--mount type=bind,source=$(pwd)/train,target=/train \
-		--mount type=bind,source=$(pwd)/transformers_cache,target=/transformers_cache \
-		--mount type=bind,source=$(pwd)/configs,target=/app/configs \
+		--mount type=bind,source=$(PWD)/train,target=/train \
+		--mount type=bind,source=$(PWD)/transformers_cache,target=/transformers_cache \
+		--mount type=bind,source=$(PWD)/configs,target=/app/configs \
+		--mount type=bind,source=$(PWD)/wandb,target=/app/wandb \
 		tscholak/$(TRAIN_IMAGE_NAME):$(GIT_HEAD_REF) \
-		/bin/bash -c "seq2seq/run_seq2seq.py configs/train.json"
+		/bin/bash -c "python seq2seq/run_seq2seq.py configs/train.json"
 
 .PHONY: train
 train_cosql:
+	mkdir -p train
+	mkdir -p transformers_cache
 	docker run \
+		-it \
 		--rm \
 		--user 13011:13011 \
-		--mount type=bind,source=$(pwd)/train,target=/train \
-		--mount type=bind,source=$(pwd)/transformers_cache,target=/transformers_cache \
-		--mount type=bind,source=$(pwd)/configs,target=/app/configs \
+		--mount type=bind,source=$(PWD)/train,target=/train \
+		--mount type=bind,source=$(PWD)/transformers_cache,target=/transformers_cache \
+		--mount type=bind,source=$(PWD)/configs,target=/app/configs \
+		--mount type=bind,source=$(PWD)/wandb,target=/app/wandb \
 		tscholak/$(TRAIN_IMAGE_NAME):$(GIT_HEAD_REF) \
-		/bin/bash -c "seq2seq/run_seq2seq.py configs/train_cosql.json"
+		/bin/bash -c "python seq2seq/run_seq2seq.py configs/train_cosql.json"
 
 .PHONY: eval
 eval:
+	mkdir -p eval
+	mkdir -p transformers_cache
 	docker run \
+		-it \
 		--rm \
 		--user 13011:13011 \
-		--mount type=bind,source=$(pwd)/eval,target=/eval \
-		--mount type=bind,source=$(pwd)/transformers_cache,target=/transformers_cache \
-		--mount type=bind,source=$(pwd)/configs,target=/app/configs \
+		--mount type=bind,source=$(PWD)/eval,target=/eval \
+		--mount type=bind,source=$(PWD)/transformers_cache,target=/transformers_cache \
+		--mount type=bind,source=$(PWD)/configs,target=/app/configs \
+		--mount type=bind,source=$(PWD)/wandb,target=/app/wandb \
 		tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF) \
-		/bin/bash -c "seq2seq/run_seq2seq.py configs/eval.json"
+		/bin/bash -c "python seq2seq/run_seq2seq.py configs/eval.json"
 
 .PHONY: eval
 eval_cosql:
+	mkdir -p eval
+	mkdir -p transformers_cache
 	docker run \
+		-it \
 		--rm \
 		--user 13011:13011 \
-		--mount type=bind,source=$(pwd)/eval,target=/eval \
-		--mount type=bind,source=$(pwd)/transformers_cache,target=/transformers_cache \
-		--mount type=bind,source=$(pwd)/configs,target=/app/configs \
+		--mount type=bind,source=$(PWD)/eval,target=/eval \
+		--mount type=bind,source=$(PWD)/transformers_cache,target=/transformers_cache \
+		--mount type=bind,source=$(PWD)/configs,target=/app/configs \
+		--mount type=bind,source=$(PWD)/wandb,target=/app/wandb \
 		tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF) \
-		/bin/bash -c "seq2seq/run_seq2seq.py configs/eval_cosql.json"
+		/bin/bash -c "python seq2seq/run_seq2seq.py configs/eval_cosql.json"

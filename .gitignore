@@ -146,3 +146,4 @@ dist-newstyle
 train/*
 eval/*
 transformers_cache/*
+wandb/*

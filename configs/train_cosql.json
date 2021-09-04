@@ -1,5 +1,5 @@
 {
-    "run_name": "t5-spider",
+    "run_name": "t5-cosql",
     "model_name_or_path": "t5-3b",
     "dataset": "cosql+spider",
     "source_prefix": "",
