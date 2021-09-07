@@ -47,7 +47,7 @@ There are three docker images that can be used to run the code:
 * **[tsscholak/text-to-sql-train](https://hub.docker.com/repository/docker/tscholak/text-to-sql-train):** Training image with development dependencies but without Picard dependencies. Use this for fine-tuning a model. Pull it with `make pull-train-image` from the docker hub. Rebuild the image with `make build-train-image`.
 * **[tscholak/text-to-sql-eval](https://hub.docker.com/repository/docker/tscholak/text-to-sql-eval):** Training/evaluation image with all dependencies. Use this for evaluating a fine-tuned model with Picard. This image can also be used for training if you want to run evaluation during training with Picard. Pull it with `make pull-eval-image` from the docker hub. Rebuild the image with `make build-eval-image`.
 
-All images are tagged with the current commit hash. The images are built with the buildx tool which is available in the latest docker-ce. Use `make init-buildkit` to initialize the buildx tool on your machine. You can then use `make build-dev-image`, `make build-train-image`, etc. to rebuild the images.
+All images are tagged with the current commit hash. The images are built with the buildx tool which is available in the latest docker-ce. Use `make init-buildkit` to initialize the buildx tool on your machine. You can then use `make build-dev-image`, `make build-train-image`, etc. to rebuild the images. Local changes to the code will not be reflected in the docker images unless they are committed to git.
 
 ### Training
 
@@ -63,6 +63,8 @@ The training script will create the directory `train` in the current directory.
 Training artifacts like checkpoints will be stored in this directory.
 
 The default configuration is stored in `configs/train.json`.
+You can change the configuration by editing this file.
+The settings are optimized for a GPU with 40GB of memory.
 
 ### Evaluation
 
@@ -134,9 +136,9 @@ The default configuration is stored in `configs/eval.json`.
   </tr>
   <tr>
     <td><a href="https://huggingface.co/tscholak/2e826ioa">tscholak/2e826ioa</a> <b>w/o PICARD</b></td>
+    <td>53.8 %</td>
     <td>??.? %</td>
-    <td>??.? %</td>
-    <td>??.? %</td>
+    <td>21.8 %</td>
     <td>??.? %</td>
   </tr>
 </table>
