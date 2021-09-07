@@ -63,7 +63,6 @@ The training script will create the directory `train` in the current directory.
 Training artifacts like checkpoints will be stored in this directory.
 
 The default configuration is stored in `configs/train.json`.
-You can change the configuration by editing this file.
 The settings are optimized for a GPU with 40GB of memory.
 
 ### Evaluation
