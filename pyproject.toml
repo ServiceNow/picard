@@ -19,7 +19,7 @@ alive_progress = "^1.6.2"
 sqlparse = "^0.4.1"
 jsonnet = "^0.17.0"
 
-pillow = "8.2.0"
+pillow = "8.3.2"
 transformers = { rev = "96d1cfb13db094d1468883060ec2d4471f63fd01", git = "https://github.com/huggingface/transformers" }
 deepspeed = { version = "0.4.2", optional = true }
 torch = { version = "1.8.1", optional = true }
