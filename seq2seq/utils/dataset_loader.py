@@ -1,7 +1,6 @@
 import json
 from typing import Callable, Tuple
 import logging
-import _jsonnet
 import datasets.load
 from datasets.dataset_dict import DatasetDict
 from datasets.metric import Metric

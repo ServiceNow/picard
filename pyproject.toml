@@ -1,42 +1,44 @@
 [tool.poetry]
-name = "text-to-sql"
-version = "0.1.0"
-description = "Text-to-SQL research"
-authors = ["The PICARD authors"]
+name = "picard"
+version = "1.0.0"
+description = "PICARD - Parsing Incrementally for Constrained Auto-Regressive Decoding from Language Models"
+authors = ["Torsten Scholak <torsten.scholak@servicenow.com>"]
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/ElementAI/picard"
 
 [tool.poetry.dependencies]
 python = "^3.8"
 cython = "^0.29.23"
 six = "^1.15.0"
 
-datasets = "1.5.0"
+datasets = "1.11.0"
 nltk = "3.6.2"
 pyyaml = "^5.4"
-sentencepiece = "0.1.95"
-tenacity = "^7.0.0"
-rapidfuzz = "1.4.1"
-alive_progress = "^1.6.2"
-sqlparse = "^0.4.1"
-jsonnet = "^0.17.0"
+sentencepiece = "0.1.96"
+tenacity = "^8.0.0"
+rapidfuzz = "1.6.1"
+alive_progress = "^2.0.0"
+sqlparse = "^0.4.2"
 
-pillow = "8.2.0"
-transformers = { rev = "96d1cfb13db094d1468883060ec2d4471f63fd01", git = "https://github.com/huggingface/transformers" }
-deepspeed = { version = "0.4.2", optional = true }
-torch = { version = "1.8.1", optional = true }
+pillow = "8.3.2"
+transformers = "^4.10.2"
+deepspeed = { version = "0.5.1", optional = true }
+torch = { version = "1.9.0", optional = true }
 
-fastapi = "^0.65.1"
-uvicorn = "^0.13.4"
+fastapi = "^0.68.1"
+uvicorn = "^0.15.0"
 
 [tool.poetry.dev-dependencies]
-pytest = "^6.2.3"
-pytest-check = "^1.0.1"
-isort = "^5.6.4"
-autopep8 = "^1.5.4"
+pytest = "^6.2.5"
+pytest-check = "^1.0.2"
+isort = "^5.9.3"
+autopep8 = "^1.5.7"
 wandb = "^0.10.30"
-black = "^20.8b1"
-mypy = "^0.790"
-flake8 = "^3.8.4"
-codalab = "^0.5.53"
+black = "^21.8b0"
+mypy = "^0.910"
+flake8 = "^3.9.2"
+# codalab = "1.1.1"
 
 [tool.poetry.extras]
 torch = ["torch"]
