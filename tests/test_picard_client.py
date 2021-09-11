@@ -286,7 +286,7 @@ def main() -> None:
                     get_picard_client=get_picard_client,
                     with_guards=True,
                 )
-                bar(text=None, incr=max_tokens_to_check * simulated_beam_size)
+                bar(max_tokens_to_check * simulated_beam_size)
 
         # Populate parser cache
         # asyncio.run(
