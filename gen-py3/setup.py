@@ -6,7 +6,7 @@ libraries = [
     "thriftcpp2",
 ]
 extra_libraries = [
-    "picard.cpython-37-x86_64-linux-gnu",
+    "picard.cpython-37m-x86_64-linux-gnu",
 ]
 extra_library_dirs = [
     "build/lib.linux-x86_64-3.7/picard",
