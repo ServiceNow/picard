@@ -78,9 +78,9 @@ RUN pip install cython \
     && cmake -DBUILD_SHARED_LIBS=ON -DPYTHON_EXTENSIONS=ON -DBUILD_EXAMPLES=off -DBUILD_TESTS=off ../. \
     && make -j4 \
     && make install \
-    && cp folly/cybld/dist/folly-0.0.1-cp38-cp38-linux_x86_64.whl /app/ \
-    && chown $TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID /app/folly-0.0.1-cp38-cp38-linux_x86_64.whl \
-    && pip install /app/folly-0.0.1-cp38-cp38-linux_x86_64.whl \
+    && cp folly/cybld/dist/folly-0.0.1-cp39-cp39-linux_x86_64.whl /app/ \
+    && chown $TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID /app/folly-0.0.1-cp39-cp39-linux_x86_64.whl \
+    && pip install /app/folly-0.0.1-cp39-cp39-linux_x86_64.whl \
     && cd .. \
     && rm -rf _build
 COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID third_party/rsocket-cpp /app/third_party/rsocket-cpp/
@@ -122,9 +122,9 @@ RUN cd /app/third_party/fbthrift \
         ../. \
     && make -j4 \
     && DESTDIR=/ make install \
-    && cp thrift/lib/py3/cybld/dist/thrift-0.0.1-cp38-cp38-linux_x86_64.whl /app/ \
-    && chown $TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID /app/thrift-0.0.1-cp38-cp38-linux_x86_64.whl \
-    && pip install /app/thrift-0.0.1-cp38-cp38-linux_x86_64.whl \
+    && cp thrift/lib/py3/cybld/dist/thrift-0.0.1-cp39-cp39-linux_x86_64.whl /app/ \
+    && chown $TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID /app/thrift-0.0.1-cp39-cp39-linux_x86_64.whl \
+    && pip install /app/thrift-0.0.1-cp39-cp39-linux_x86_64.whl \
     && cd .. \
     && rm -rf _build
 
@@ -263,8 +263,8 @@ RUN poetry config virtualenvs.create false
 RUN chmod go+r $XDG_CONFIG_HOME/pypoetry/config.toml
 COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID pyproject.toml poetry.lock /app/
 RUN poetry install --extras "deepspeed" \
-    && pip install /app/folly-0.0.1-cp38-cp38-linux_x86_64.whl \
-    && pip install /app/thrift-0.0.1-cp38-cp38-linux_x86_64.whl \
+    && pip install /app/folly-0.0.1-cp39-cp39-linux_x86_64.whl \
+    && pip install /app/thrift-0.0.1-cp39-cp39-linux_x86_64.whl \
     && rm -rf $XDG_CACHE_HOME/pip \
     && rm -rf $XDG_CACHE_HOME/pypoetry \
     && chown -R $TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID $XDG_CONFIG_HOME/pypoetry
