@@ -8,7 +8,7 @@ readme = "README.md"
 repository = "https://github.com/ElementAI/picard"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.7"
 cython = "^0.29.23"
 six = "^1.15.0"
 
