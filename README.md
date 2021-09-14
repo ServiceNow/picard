@@ -15,7 +15,7 @@
 
 This is the official implementation of the following paper:
 
-[Torsten Scholak](https://twitter.com/tscholak), Nathan Schucher, Dzmitry Bahdanau. [PICARD - Parsing Incrementally for Constrained Auto-Regressive Decoding from Language Models](). *Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing (EMNLP).*
+[Torsten Scholak](https://twitter.com/tscholak), Nathan Schucher, Dzmitry Bahdanau. [PICARD - Parsing Incrementally for Constrained Auto-Regressive Decoding from Language Models](https://arxiv.org/abs/2109.05093). *Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing (EMNLP).*
 
 ## Overview
 
@@ -56,7 +56,7 @@ This is the approach taken by the PICARD algorithm.
 
 ### How does PICARD work?
 
-The following picture shows how beam search is integrated with PICARD.
+The following picture shows how PICARD is integrated with beam search.
 
 <p align="center">
     <br>
@@ -70,16 +70,55 @@ and then keeps expanding the beam with hypotheses generated token-by-token by th
 At each decoding step and for each hypothesis,
 PICARD checks whether the next top-`k` tokens are valid.
 In the image above, only 3 token predictions are shown, and `k` is set to 2.
-Valid tokens (☑) are added to the beam. Invalid ones (☒) are discarded.
+Valid tokens (☑) are added to the beam. Invalid ones (☒) are discarded. The `k+1`-th, `k+2`-th, ... tokens are discarded, too.
 Like in normal beam search, the beam is pruned to contain only the top-`n` hypotheses.
-`n` is the beam size, and in the image above it is set to at least 2.
+`n` is the beam size, and in the image above it is set to 2 as well.
 Hypotheses that are terminated with the end-of-sentence token (usually `</s>`) are not expanded further.
 The algorithm stops when the all hypotheses are terminated
 or when the maximum number of tokens has been reached.
 
 ### How does PICARD know whether a token is valid?
 
-tbd.
+In PICARD, checking, accepting, and rejecting of tokens and token sequences is achieved through *parsing*.
+Parsing means that we attempt to assemble a data structure from the tokens
+that are currently in the beam or are about to be added to it.
+This data structure (and the parsing rules that are used to build it) encode the constraints we want to enforce.
+
+In the case of SQL, the data structure we parse to is the abstract syntax tree (AST) of the SQL query.
+The parsing rules are defined in a computer program called a parser.
+Database engines, such as PostgreSQL, MySQL, and SQLite, have their own built-in parser that they use internally to process SQL queries.
+For Spider and CoSQL,
+we have implemented a parser that supports a subset of the SQLite syntax and that checks additional constraints on the AST.
+In our implementation,
+the parsing rules are made up from simpler rules and primitives that are provided by a third-party parsing library.
+
+PICARD uses a parsing library called [attoparsec](https://hackage.haskell.org/package/attoparsec) that supports incremental input.
+This is a special capability that is not available in many other parsing libraries.
+You can feed attoparsec a string that represents only part of the expected input to parse.
+When parsing reaches the end of an input fragment,
+attoparsec will return a [continuation function](https://hackage.haskell.org/package/attoparsec-0.14.1/docs/Data-Attoparsec-Text.html#t:IResult)
+that can be used to continue parsing.
+Think of the continuation function as a suspended computation that can be resumed later.
+Input fragments can be parsed one after the other when they become available until the input is complete.
+
+Herein lies the key to PICARD:
+Incremental parsing of input fragments is exactly what we need to check tokens one by one during decoding.
+
+In PICARD,
+parsing is initialized with an empty string, and attoparsec will return the first continuation function.
+We then call that continuation function with all the token predictions we want to check in the first decoding step.
+For those tokens that are valid, the continuation function will return a new continuation function
+that we can use to continue parsing in the next decoding step.
+For those tokens that are invalid, the continuation function will return a failure value which cannot be used to continue parsing.
+Such failures are discarded and never end up in the beam.
+We repeat the process until the end of the input is reached.
+The input is complete once the model predicts the end-of-sentence token.
+When that happens, we finalize the parsing by calling the continuation function with an empty string.
+If the parsing is successful, it will return the final AST.
+If not, it will return a failure value.
+
+The parsing rules are described at a high level in the [PICARD paper](https://arxiv.org/abs/2109.05093).
+For details, see the PICARD code, specifically the [Language.SQL.SpiderSQL.Parse module](https://github.com/ElementAI/picard/blob/main/picard/src/Language/SQL/SpiderSQL/Parse.hs).
 
 ### How well does PICARD work?
 
