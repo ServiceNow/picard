@@ -43,7 +43,7 @@ jobs:
         with:
           builder: ${{ steps.buildx.outputs.name }}
           build-args: |
-            BASE_IMAGE=pytorch/pytorch:1.8.1-cuda11.1-cudnn8-devel
+            BASE_IMAGE=pytorch/pytorch:1.9.0-cuda11.1-cudnn8-devel
           push: true
           tags: |
             tscholak/text-to-sql-dev:${{ github.sha }}
@@ -57,7 +57,7 @@ jobs:
         with:
           builder: ${{ steps.buildx.outputs.name }}
           build-args: |
-            BASE_IMAGE=pytorch/pytorch:1.8.1-cuda11.1-cudnn8-devel
+            BASE_IMAGE=pytorch/pytorch:1.9.0-cuda11.1-cudnn8-devel
           push: true
           tags: |
             tscholak/text-to-sql-train:${{ github.sha }}
@@ -71,7 +71,7 @@ jobs:
         with:
           builder: ${{ steps.buildx.outputs.name }}
           build-args: |
-            BASE_IMAGE=pytorch/pytorch:1.8.1-cuda11.1-cudnn8-devel
+            BASE_IMAGE=pytorch/pytorch:1.9.0-cuda11.1-cudnn8-devel
           push: true
           tags: |
             tscholak/text-to-sql-eval:${{ github.sha }}
