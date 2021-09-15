@@ -100,7 +100,7 @@ build-eval-image:
 	docker pull tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF)
 
 .PHONY: train
-train:
+train: pull-train-image
 	mkdir -p train
 	mkdir -p transformers_cache
 	mkdir -p wandb
@@ -116,7 +116,7 @@ train:
 		/bin/bash -c "python seq2seq/run_seq2seq.py configs/train.json"
 
 .PHONY: train
-train_cosql:
+train_cosql: pull-train-image
 	mkdir -p train
 	mkdir -p transformers_cache
 	docker run \
@@ -131,7 +131,7 @@ train_cosql:
 		/bin/bash -c "python seq2seq/run_seq2seq.py configs/train_cosql.json"
 
 .PHONY: eval
-eval:
+eval: pull-eval-image
 	mkdir -p eval
 	mkdir -p transformers_cache
 	docker run \
@@ -146,7 +146,7 @@ eval:
 		/bin/bash -c "python seq2seq/run_seq2seq.py configs/eval.json"
 
 .PHONY: eval
-eval_cosql:
+eval_cosql: pull-eval-image
 	mkdir -p eval
 	mkdir -p transformers_cache
 	docker run \
