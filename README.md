@@ -17,6 +17,18 @@ This is the official implementation of the following paper:
 
 [Torsten Scholak](https://twitter.com/tscholak), Nathan Schucher, Dzmitry Bahdanau. [PICARD - Parsing Incrementally for Constrained Auto-Regressive Decoding from Language Models](https://arxiv.org/abs/2109.05093). *Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing (EMNLP).*
 
+If you use this code, please cite:
+
+```bibtex
+@inproceedings{Scholak2021:PICARD,
+  author = {Torsten Scholak and Nathan Schucher and Dzmitry Bahdanau},
+  title = {PICARD - Parsing Incrementally for Constrained Auto-Regressive Decoding from Language Models},
+  booktitle = {Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing},
+  year = {2021},
+  publisher = {Association for Computational Linguistics},
+}
+```
+
 ## Overview
 
 This code implements:
@@ -248,16 +260,3 @@ There are three docker images that can be used to run the code:
 * **[tscholak/text-to-sql-eval](https://hub.docker.com/repository/docker/tscholak/text-to-sql-eval):** Training/evaluation image with all dependencies. Use this for evaluating a fine-tuned model with Picard. This image can also be used for training if you want to run evaluation during training with Picard. Pull it with `make pull-eval-image` from the docker hub. Rebuild the image with `make build-eval-image`.
 
 All images are tagged with the current commit hash. The images are built with the buildx tool which is available in the latest docker-ce. Use `make init-buildkit` to initialize the buildx tool on your machine. You can then use `make build-dev-image`, `make build-train-image`, etc. to rebuild the images. Local changes to the code will not be reflected in the docker images unless they are committed to git.
-
-## Citation
-
-If you use this code, please cite the following paper:
-
-```bibtex
-@inproceedings{Scholak2021:PICARD,
-  author = {Torsten Scholak and Nathan Schucher and Dzmitry Bahdanau},
-  title = {PICARD - Parsing Incrementally for Constrained Auto-Regressive Decoding from Language Models},
-  booktitle = {EMNLP 2021},
-  year = {2021},
-}
-```
