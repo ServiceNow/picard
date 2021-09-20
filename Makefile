@@ -97,6 +97,7 @@ build-eval-image:
 		git@github.com:ElementAI/picard#$(GIT_HEAD_REF)
 
 .PHONY: pull-eval-image
+pull-eval-image:
 	docker pull tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF)
 
 .PHONY: train
