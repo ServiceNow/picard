@@ -10,7 +10,6 @@
     <a href="https://github.com/ElementAI/picard/blob/main/LICENSE">
         <img alt="license" src="https://img.shields.io/github/license/ElementAI/picard.svg?color=blue">
     </a>
-    <a href="https://zenodo.org/badge/latestdoi/tbd"><img alt="DOI" src="https://zenodo.org/badge/tbd.svg"></a>
 </p>
 
 This is the official implementation of the following paper:
