@@ -120,6 +120,7 @@ train: pull-train-image
 train_cosql: pull-train-image
 	mkdir -p train
 	mkdir -p transformers_cache
+	mkdir -p wandb
 	docker run \
 		-it \
 		--rm \
@@ -135,6 +136,7 @@ train_cosql: pull-train-image
 eval: pull-eval-image
 	mkdir -p eval
 	mkdir -p transformers_cache
+	mkdir -p wandb
 	docker run \
 		-it \
 		--rm \
@@ -150,6 +152,7 @@ eval: pull-eval-image
 eval_cosql: pull-eval-image
 	mkdir -p eval
 	mkdir -p transformers_cache
+	mkdir -p wandb
 	docker run \
 		-it \
 		--rm \
