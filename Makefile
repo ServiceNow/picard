@@ -116,7 +116,7 @@ train: pull-train-image
 		tscholak/$(TRAIN_IMAGE_NAME):$(GIT_HEAD_REF) \
 		/bin/bash -c "python seq2seq/run_seq2seq.py configs/train.json"
 
-.PHONY: train
+.PHONY: train_cosql
 train_cosql: pull-train-image
 	mkdir -p train
 	mkdir -p transformers_cache
@@ -148,7 +148,7 @@ eval: pull-eval-image
 		tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF) \
 		/bin/bash -c "python seq2seq/run_seq2seq.py configs/eval.json"
 
-.PHONY: eval
+.PHONY: eval_cosql
 eval_cosql: pull-eval-image
 	mkdir -p eval
 	mkdir -p transformers_cache
