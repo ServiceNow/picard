@@ -34,6 +34,7 @@
     "metric_for_best_model": "exact_match",
     "greater_is_better": true,
     "save_total_limit": 128,
+    "save_steps": 64,
     "evaluation_strategy": "steps",
     "eval_steps": 64,
     "predict_with_generate": true,
