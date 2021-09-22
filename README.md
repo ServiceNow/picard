@@ -33,7 +33,7 @@ If you use this code, please cite:
 This code implements:
 
 * The PICARD algorithm for constrained decoding from language models.
-* A text-to-SQL semantic parser based on pre-trained sequence-to-sequence models and PICARD achieving state-of-the-art performance on both the [Spider](https://yale-lily.github.io/cosql) and the [CoSQL](https://yale-lily.github.io/cosql) datasets. 
+* A text-to-SQL semantic parser based on pre-trained sequence-to-sequence models and PICARD achieving state-of-the-art performance on both the [Spider](https://yale-lily.github.io/spider) and the [CoSQL](https://yale-lily.github.io/cosql) datasets. 
 
 ## About PICARD
 
@@ -135,7 +135,7 @@ For details, see the PICARD code, specifically the [Language.SQL.SpiderSQL.Parse
 
 Let's look at the numbers:
 
-#### On Spider
+#### On [Spider](https://yale-lily.github.io/spider)
 
 <table>
   <tr>
@@ -167,7 +167,7 @@ Let's look at the numbers:
 
 Click on the links to download the model.
 
-#### On CoSQL Dialogue State Tracking
+#### On [CoSQL](https://yale-lily.github.io/cosql) Dialogue State Tracking
 
 <table>
   <tr>
