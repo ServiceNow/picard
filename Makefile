@@ -102,9 +102,9 @@ pull-eval-image:
 
 .PHONY: train
 train: pull-train-image
-	mkdir -p train
-	mkdir -p transformers_cache
-	mkdir -p wandb
+	mkdir -p -m 777 train
+	mkdir -p -m 777 transformers_cache
+	mkdir -p -m 777 wandb
 	docker run \
 		-it \
 		--rm \
@@ -118,9 +118,9 @@ train: pull-train-image
 
 .PHONY: train_cosql
 train_cosql: pull-train-image
-	mkdir -p train
-	mkdir -p transformers_cache
-	mkdir -p wandb
+	mkdir -p -m 777 train
+	mkdir -p -m 777 transformers_cache
+	mkdir -p -m 777 wandb
 	docker run \
 		-it \
 		--rm \
@@ -134,9 +134,9 @@ train_cosql: pull-train-image
 
 .PHONY: eval
 eval: pull-eval-image
-	mkdir -p eval
-	mkdir -p transformers_cache
-	mkdir -p wandb
+	mkdir -p -m 777 eval
+	mkdir -p -m 777 transformers_cache
+	mkdir -p -m 777 wandb
 	docker run \
 		-it \
 		--rm \
@@ -150,9 +150,9 @@ eval: pull-eval-image
 
 .PHONY: eval_cosql
 eval_cosql: pull-eval-image
-	mkdir -p eval
-	mkdir -p transformers_cache
-	mkdir -p wandb
+	mkdir -p -m 777 eval
+	mkdir -p -m 777 transformers_cache
+	mkdir -p -m 777 wandb
 	docker run \
 		-it \
 		--rm \
