@@ -163,6 +163,20 @@ Let's look at the numbers:
     <td>74.4 %</td>
     <td>70.1 %</td>
   </tr>
+  <tr>
+    <td><a href="https://huggingface.co/tscholak/1wnr382e">tscholak/1wnr382e</a> w PICARD</td>
+    <td>69.1 %</td>
+    <td>—</td>
+    <td>72.9 %</td>
+    <td>—</td>
+  </tr>
+  <tr>
+    <td><a href="https://huggingface.co/tscholak/1wnr382e">tscholak/1wnr382e</a> w/o PICARD</td>
+    <td>65.3 %</td>
+    <td>—</td>
+    <td>67.2 %</td>
+    <td>—</td>
+  </tr>
 </table>
 
 Click on the links to download the model.
