@@ -14,3 +14,5 @@ packages:
 
 extra-lib-dirs:
     /app/third_party/tokenizers/target/release
+
+tests: true
