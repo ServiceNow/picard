@@ -12,6 +12,7 @@ library
       Language.SQL.SpiderSQL.Parse
       Language.SQL.SpiderSQL.Prelude
       Language.SQL.SpiderSQL.Syntax
+      Control.Monad.Yoctoparsec.Class
       Paths_picard
   autogen-modules:
       Paths_picard
@@ -28,6 +29,7 @@ library
     , containers
     , data-default
     , deepseq
+    , free
     , generic-lens
     , ghc >=8.10.4 && <8.11
     , hashable
@@ -42,8 +44,10 @@ library
     , thrift-lib
     , thrift-server
     , transformers
+    , trifecta
     , unordered-containers
     , vector
+    , yoctoparsec
   default-language: Haskell2010
 
 executable picard
@@ -62,10 +66,12 @@ executable picard
     , base
     , bytestring
     , containers
+    , free
     , http-client
     , http-client-tls
     , ghc >=8.10.4 && <8.11
     , mtl
+    , parsers
     , picard
     , picard-gen-hs
     , SafeSemaphore
@@ -77,8 +83,10 @@ executable picard
     , thrift-lib
     , thrift-server
     , tokenizers
+    , trifecta
     , unordered-containers
     , vector
+    , yoctoparsec
   default-language: Haskell2010
 
 test-suite picard-doctest
@@ -94,8 +102,10 @@ test-suite picard-doctest
     , base
     , containers
     , doctest
+    , free
     , ghc >=8.10.4 && <8.11
     , mtl
+    , parsers
     , picard
     , picard-gen-hs
     , text
@@ -103,8 +113,10 @@ test-suite picard-doctest
     , thrift-cpp-channel
     , thrift-lib
     , thrift-server
+    , trifecta
     , unordered-containers
     , vector
+    , yoctoparsec
   default-language: Haskell2010
 
 test-suite picard-test
@@ -136,9 +148,11 @@ test-suite picard-test
       attoparsec
     , base
     , containers
+    , free
     , ghc >=8.10.4 && <8.11
     , hedgehog
     , mtl
+    , parsers
     , picard
     , picard-gen-hs
     , tasty
@@ -148,6 +162,8 @@ test-suite picard-test
     , thrift-cpp-channel
     , thrift-lib
     , thrift-server
+    , trifecta
     , unordered-containers
     , vector
+    , yoctoparsec
   default-language: Haskell2010

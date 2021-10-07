@@ -5,11 +5,24 @@ module Language.SQL.SpiderSQL.Academic where
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import Language.SQL.SpiderSQL.TestItem (TestItem (..))
-import Picard.Types (SQLSchema (..))
+import Picard.Types (ColumnType (..), SQLSchema (..))
+
+academicSchema :: SQLSchema
+academicSchema =
+  let columnNames = HashMap.fromList [("1", "aid"), ("10", "aid"), ("11", "did"), ("12", "cid"), ("13", "did"), ("14", "homepage"), ("15", "jid"), ("16", "name"), ("17", "did"), ("18", "jid"), ("19", "keyword"), ("2", "homepage"), ("20", "kid"), ("21", "did"), ("22", "kid"), ("23", "abstract"), ("24", "cid"), ("25", "citation_num"), ("26", "jid"), ("27", "pid"), ("28", "reference_num"), ("29", "title"), ("3", "name"), ("30", "year"), ("31", "did"), ("32", "pid"), ("33", "continent"), ("34", "homepage"), ("35", "name"), ("36", "oid"), ("37", "pid"), ("38", "kid"), ("39", "aid"), ("4", "oid"), ("40", "pid"), ("41", "cited"), ("42", "citing"), ("5", "cid"), ("6", "homepage"), ("7", "name"), ("8", "did"), ("9", "name")]
+      columnTypes = HashMap.fromList [("1", ColumnType_NUMBER), ("10", ColumnType_NUMBER), ("11", ColumnType_NUMBER), ("12", ColumnType_NUMBER), ("13", ColumnType_NUMBER), ("14", ColumnType_TEXT), ("15", ColumnType_NUMBER), ("16", ColumnType_TEXT), ("17", ColumnType_NUMBER), ("18", ColumnType_NUMBER), ("19", ColumnType_TEXT), ("2", ColumnType_TEXT), ("20", ColumnType_NUMBER), ("21", ColumnType_NUMBER), ("22", ColumnType_NUMBER), ("23", ColumnType_TEXT), ("24", ColumnType_NUMBER), ("25", ColumnType_NUMBER), ("26", ColumnType_NUMBER), ("27", ColumnType_NUMBER), ("28", ColumnType_NUMBER), ("29", ColumnType_TEXT), ("3", ColumnType_TEXT), ("30", ColumnType_NUMBER), ("31", ColumnType_NUMBER), ("32", ColumnType_NUMBER), ("33", ColumnType_TEXT), ("34", ColumnType_TEXT), ("35", ColumnType_TEXT), ("36", ColumnType_NUMBER), ("37", ColumnType_NUMBER), ("38", ColumnType_NUMBER), ("39", ColumnType_NUMBER), ("4", ColumnType_NUMBER), ("40", ColumnType_NUMBER), ("41", ColumnType_NUMBER), ("42", ColumnType_NUMBER), ("5", ColumnType_NUMBER), ("6", ColumnType_TEXT), ("7", ColumnType_TEXT), ("8", ColumnType_NUMBER), ("9", ColumnType_TEXT)]
+      tableNames = HashMap.fromList [("0", "author"), ("1", "conference"), ("10", "domain_publication"), ("11", "organization"), ("12", "publication_keyword"), ("13", "writes"), ("14", "cite"), ("2", "domain"), ("3", "domain_author"), ("4", "domain_conference"), ("5", "journal"), ("6", "domain_journal"), ("7", "keyword"), ("8", "domain_keyword"), ("9", "publication")]
+      columnToTable = HashMap.fromList [("1", "0"), ("10", "3"), ("11", "3"), ("12", "4"), ("13", "4"), ("14", "5"), ("15", "5"), ("16", "5"), ("17", "6"), ("18", "6"), ("19", "7"), ("2", "0"), ("20", "7"), ("21", "8"), ("22", "8"), ("23", "9"), ("24", "9"), ("25", "9"), ("26", "9"), ("27", "9"), ("28", "9"), ("29", "9"), ("3", "0"), ("30", "9"), ("31", "10"), ("32", "10"), ("33", "11"), ("34", "11"), ("35", "11"), ("36", "11"), ("37", "12"), ("38", "12"), ("39", "13"), ("4", "0"), ("40", "13"), ("41", "14"), ("42", "14"), ("5", "1"), ("6", "1"), ("7", "1"), ("8", "2"), ("9", "2")]
+      tableToColumns = HashMap.fromList [("0", ["1", "2", "3", "4"]), ("1", ["5", "6", "7"]), ("10", ["31", "32"]), ("11", ["33", "34", "35", "36"]), ("12", ["37", "38"]), ("13", ["39", "40"]), ("14", ["41", "42"]), ("2", ["8", "9"]), ("3", ["10", "11"]), ("4", ["12", "13"]), ("5", ["14", "15", "16"]), ("6", ["17", "18"]), ("7", ["19", "20"]), ("8", ["21", "22"]), ("9", ["23", "24", "25", "26", "27", "28", "29", "30"])]
+      foreignKeys = HashMap.fromList [("10", "1"), ("11", "8"), ("12", "5"), ("13", "8"), ("17", "8"), ("18", "15"), ("21", "8"), ("22", "20"), ("24", "5"), ("26", "15"), ("31", "8"), ("32", "27"), ("37", "27"), ("38", "20"), ("39", "1"), ("40", "27"), ("41", "27"), ("42", "27")]
+      primaryKeys = ["1", "5", "8", "11", "13", "15", "17", "20", "21", "27", "31", "36", "38", "39"]
+   in SQLSchema {sQLSchema_columnNames = columnNames, sQLSchema_columnTypes = columnTypes, sQLSchema_tableNames = tableNames, sQLSchema_columnToTable = columnToTable, sQLSchema_tableToColumns = tableToColumns, sQLSchema_foreignKeys = foreignKeys, sQLSchema_primaryKeys = primaryKeys}
 
 academicQueries :: [Text.Text]
 academicQueries =
-  [ "SELECT homepage FROM journal WHERE name  =  \"PVLDB\";",
+  [ "SELECT * FROM journal",
+    "SELECT homepage FROM journal",
+    "SELECT homepage FROM journal WHERE name  =  \"PVLDB\";",
     "SELECT homepage FROM author WHERE name  =  \"H. V. Jagadish\";",
     "SELECT abstract FROM publication WHERE title  =  \"Making database systems usable\";",
     "SELECT YEAR FROM publication WHERE title  =  \"Making database systems usable\";",
@@ -24,6 +37,17 @@ academicQueries =
     "SELECT title FROM publication WHERE citation_num  >  200;",
     "SELECT t1.name FROM publication AS t4 JOIN journal AS t2 ON t4.jid  =  t2.jid JOIN writes AS t3 ON t3.pid  =  t4.pid JOIN author AS t1 ON t3.aid  =  t1.aid WHERE t2.name  =  \"PVLDB\" AND t4.year  =  2010;",
     "SELECT t1.name FROM publication AS t4 JOIN journal AS t2 ON t4.jid  =  t2.jid JOIN writes AS t3 ON t3.pid  =  t4.pid JOIN author AS t1 ON t3.aid  =  t1.aid WHERE t2.name  =  \"PVLDB\" AND t4.year  >  2010;",
+    "SELECT t1.name FROM author as t1",
+    "SELECT t1.name FROM writes AS t3 JOIN author AS t1 ON t3.aid = t1.aid",
+    "SELECT t1.* FROM publication AS t4 JOIN writes AS t3 ON t3.pid = t4.pid JOIN author AS t1 ON t3.aid = t1.aid",
+    "SELECT t1.name FROM publication AS t4 JOIN writes AS t3 ON t3.pid = t4.pid JOIN author AS t1 ON t3.aid = t1.aid",
+    "SELECT t1.name FROM publication AS t4 JOIN author AS t1 ON t3.aid = t1.aid JOIN writes AS t3 ON t3.pid = t4.pid",
+    "SELECT * FROM publication JOIN conference ON conference.cid = publication.cid",
+    "SELECT * FROM publication AS t4 JOIN conference AS t2 ON t4.cid  =  t2.cid",
+    "SELECT * FROM publication AS t4 JOIN conference AS t2 ON t4.cid  =  t2.cid JOIN writes AS t3 ON t3.pid  =  t4.pid JOIN author AS t1 ON t3.aid  =  t1.aid",
+    "SELECT t1.* FROM publication AS t4 JOIN conference AS t2 ON t4.cid  =  t2.cid JOIN writes AS t3 ON t3.pid  =  t4.pid JOIN author AS t1 ON t3.aid  =  t1.aid",
+    "SELECT t1.name FROM publication AS t4 JOIN conference AS t2 ON t4.cid  =  t2.cid JOIN author AS t1 ON t3.aid  =  t1.aid JOIN writes AS t3 ON t3.pid  =  t4.pid",
+    "SELECT t1.name FROM publication AS t4 JOIN conference AS t2 ON t4.cid  =  t2.cid JOIN writes AS t3 ON t3.pid  =  t4.pid JOIN author AS t1 ON t3.aid  =  t1.aid",
     "SELECT t1.name FROM publication AS t4 JOIN conference AS t2 ON t4.cid  =  t2.cid JOIN writes AS t3 ON t3.pid  =  t4.pid JOIN author AS t1 ON t3.aid  =  t1.aid WHERE t2.name  =  \"VLDB\" AND t4.year  =  2002;",
     "SELECT t1.name FROM publication AS t4 JOIN conference AS t2 ON t4.cid  =  t2.cid JOIN writes AS t3 ON t3.pid  =  t4.pid JOIN author AS t1 ON t3.aid  =  t1.aid WHERE t2.name  =  \"VLDB\" AND t4.year  <  2002;",
     "SELECT t1.name FROM publication AS t4 JOIN conference AS t2 ON t4.cid  =  t2.cid JOIN writes AS t3 ON t3.pid  =  t4.pid JOIN author AS t1 ON t3.aid  =  t1.aid WHERE t2.name  =  \"VLDB\" AND t4.year  <  2002 AND t4.year  >  1995;",
@@ -184,26 +208,23 @@ academicQueries =
     "SELECT t1.name FROM publication AS t4 JOIN conference AS t2 ON t4.cid  =  t2.cid JOIN writes AS t3 ON t3.pid  =  t4.pid JOIN author AS t1 ON t3.aid  =  t1.aid WHERE t2.name  =  \"VLDB\" GROUP BY t1.name HAVING COUNT ( DISTINCT t4.title )  >  10;",
     "SELECT t1.name FROM publication AS t4 JOIN conference AS t2 ON t4.cid  =  t2.cid JOIN writes AS t3 ON t3.pid  =  t4.pid JOIN author AS t1 ON t3.aid  =  t1.aid WHERE t2.name  =  \"VLDB\" GROUP BY t1.name ORDER BY COUNT ( DISTINCT t4.title ) DESC LIMIT 1;",
     "SELECT t1.name FROM organization AS t2 JOIN author AS t1 ON t2.oid  =  t1.oid JOIN writes AS t3 ON t3.aid  =  t1.aid JOIN publication AS t4 ON t3.pid  =  t4.pid WHERE t2.name  =  \"University of Michigan\" GROUP BY t1.name HAVING SUM ( t4.citation_num )  >  5000;",
-    "SELECT t1.name FROM domain_author AS t6 JOIN author AS t1 ON t6.aid  =  t1.aid JOIN DOMAIN AS t3 ON t3.did  =  t6.did JOIN organization AS t5 ON t5.oid  =  t1.oid JOIN writes AS t2 ON t2.aid  =  t1.aid JOIN publication AS t4 ON t2.pid  =  t4.pid WHERE t3.name  =  \"Databases\" AND t5.name  =  \"University of Michigan\" GROUP BY t1.name HAVING SUM ( t4.citation_num )  >  5000;"
+    "SELECT t1.name FROM domain_author AS t6 JOIN author AS t1 ON t6.aid  =  t1.aid JOIN DOMAIN AS t3 ON t3.did  =  t6.did JOIN organization AS t5 ON t5.oid  =  t1.oid JOIN writes AS t2 ON t2.aid  =  t1.aid JOIN publication AS t4 ON t2.pid  =  t4.pid WHERE t3.name  =  \"Databases\" AND t5.name  =  \"University of Michigan\" GROUP BY t1.name HAVING SUM ( t4.citation_num )  >  5000;",
+    "SELECT t1.name FROM writes AS t3 JOIN author AS t1 ON t3.aid = t1.aid"
   ]
 
-academicSchema :: SQLSchema
-academicSchema =
-  let columnNames = HashMap.fromList [("15", "jid"), ("37", "pid"), ("7", "name"), ("25", "citation_num"), ("28", "reference_num"), ("13", "did"), ("31", "did"), ("14", "homepage"), ("36", "oid"), ("22", "kid"), ("19", "keyword"), ("29", "title"), ("12", "cid"), ("30", "year"), ("17", "did"), ("35", "name"), ("1", "aid"), ("23", "abstract"), ("18", "jid"), ("40", "pid"), ("4", "oid"), ("26", "jid"), ("16", "name"), ("34", "homepage"), ("2", "homepage"), ("20", "kid"), ("39", "aid"), ("5", "cid"), ("27", "pid"), ("41", "cited"), ("8", "did"), ("11", "did"), ("33", "continent"), ("38", "kid"), ("3", "name"), ("21", "did"), ("24", "cid"), ("42", "citing"), ("6", "homepage"), ("9", "name"), ("10", "aid"), ("32", "pid")]
-      tableNames = HashMap.fromList [("7", "keyword"), ("13", "writes"), ("14", "cite"), ("0", "author"), ("12", "publication_keyword"), ("1", "conference"), ("4", "domain_conference"), ("2", "domain"), ("5", "journal"), ("8", "domain_keyword"), ("11", "organization"), ("3", "domain_author"), ("6", "domain_journal"), ("9", "publication"), ("10", "domain_publication")]
-      columnToTable = HashMap.fromList [("15", "5"), ("37", "12"), ("7", "1"), ("25", "9"), ("28", "9"), ("13", "4"), ("31", "10"), ("14", "5"), ("36", "11"), ("22", "8"), ("19", "7"), ("29", "9"), ("12", "4"), ("30", "9"), ("17", "6"), ("35", "11"), ("1", "0"), ("23", "9"), ("18", "6"), ("40", "13"), ("4", "0"), ("26", "9"), ("16", "5"), ("34", "11"), ("2", "0"), ("20", "7"), ("39", "13"), ("5", "1"), ("27", "9"), ("41", "14"), ("8", "2"), ("11", "3"), ("33", "11"), ("38", "12"), ("3", "0"), ("21", "8"), ("24", "9"), ("42", "14"), ("6", "1"), ("9", "2"), ("10", "3"), ("32", "10")]
-      tableToColumns = HashMap.fromList [("7", ["19", "20"]), ("13", ["39", "40"]), ("14", ["41", "42"]), ("0", ["1", "2", "3", "4"]), ("12", ["37", "38"]), ("1", ["5", "6", "7"]), ("4", ["12", "13"]), ("2", ["8", "9"]), ("5", ["14", "15", "16"]), ("8", ["21", "22"]), ("11", ["33", "34", "35", "36"]), ("3", ["10", "11"]), ("6", ["17", "18"]), ("9", ["23", "24", "25", "26", "27", "28", "29", "30"]), ("10", ["31", "32"])]
-      foreignKeys = HashMap.fromList [("37", "27"), ("13", "8"), ("31", "8"), ("22", "20"), ("12", "5"), ("17", "8"), ("18", "15"), ("40", "27"), ("26", "15"), ("39", "1"), ("41", "27"), ("11", "8"), ("38", "20"), ("21", "8"), ("24", "5"), ("42", "27"), ("10", "1"), ("32", "27")]
-      foreignKeysTables = HashMap.fromList [("13", ["0", "9"]), ("14", ["9"]), ("12", ["7", "9"]), ("4", ["1", "2"]), ("8", ["2", "7"]), ("3", ["0", "2"]), ("6", ["2", "5"]), ("9", ["1", "5"]), ("10", ["2", "9"])]
-      primaryKeys = ["1", "5", "8", "11", "13", "15", "17", "20", "21", "27", "31", "36", "38", "39"]
-   in SQLSchema {sQLSchema_columnNames = columnNames, sQLSchema_tableNames = tableNames, sQLSchema_columnToTable = columnToTable, sQLSchema_tableToColumns = tableToColumns, sQLSchema_foreignKeys = foreignKeys, sQLSchema_foreignKeysTables = foreignKeysTables, sQLSchema_primaryKeys = primaryKeys}
+academicQueriesFailsTypeChecking :: [Text.Text]
+academicQueriesFailsTypeChecking =
+  [ "SELECT homepage FROM journal WHERE name = 0"
+  ]
 
 academicParserTests :: TestItem
 academicParserTests =
   Group "academic" $
-    (ParseQueryExprWithGuards academicSchema <$> academicQueries)
+    (ParseQueryExprWithGuardsAndTypeChecking academicSchema <$> academicQueries)
+      <> (ParseQueryExprWithGuards academicSchema <$> academicQueries)
       <> (ParseQueryExprWithoutGuards academicSchema <$> academicQueries)
       <> (ParseQueryExprFails academicSchema <$> [])
+      <> (ParseQueryExprFailsTypeChecking academicSchema <$> academicQueriesFailsTypeChecking)
 
 academicLexerTests :: TestItem
 academicLexerTests =

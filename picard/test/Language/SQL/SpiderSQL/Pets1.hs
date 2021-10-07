@@ -5,18 +5,18 @@ module Language.SQL.SpiderSQL.Pets1 where
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import Language.SQL.SpiderSQL.TestItem (TestItem (..))
-import Picard.Types (SQLSchema (..))
+import Picard.Types (ColumnType (..), SQLSchema (..))
 
 pets1Schema :: SQLSchema
 pets1Schema =
-  let columnNames = HashMap.fromList [("7", "Advisor"), ("13", "pet_age"), ("14", "weight"), ("12", "PetType"), ("1", "StuID"), ("4", "Age"), ("2", "LName"), ("5", "Sex"), ("8", "city_code"), ("11", "PetID"), ("3", "Fname"), ("6", "Major"), ("9", "StuID"), ("10", "PetID")]
+  let columnNames = HashMap.fromList [("1", "StuID"), ("10", "PetID"), ("11", "PetID"), ("12", "PetType"), ("13", "pet_age"), ("14", "weight"), ("2", "LName"), ("3", "Fname"), ("4", "Age"), ("5", "Sex"), ("6", "Major"), ("7", "Advisor"), ("8", "city_code"), ("9", "StuID")]
+      columnTypes = HashMap.fromList [("1", ColumnType_NUMBER), ("10", ColumnType_NUMBER), ("11", ColumnType_NUMBER), ("12", ColumnType_TEXT), ("13", ColumnType_NUMBER), ("14", ColumnType_NUMBER), ("2", ColumnType_TEXT), ("3", ColumnType_TEXT), ("4", ColumnType_NUMBER), ("5", ColumnType_TEXT), ("6", ColumnType_NUMBER), ("7", ColumnType_NUMBER), ("8", ColumnType_TEXT), ("9", ColumnType_NUMBER)]
       tableNames = HashMap.fromList [("0", "Student"), ("1", "Has_Pet"), ("2", "Pets")]
-      columnToTable = HashMap.fromList [("7", "0"), ("13", "2"), ("14", "2"), ("12", "2"), ("1", "0"), ("4", "0"), ("2", "0"), ("5", "0"), ("8", "0"), ("11", "2"), ("3", "0"), ("6", "0"), ("9", "1"), ("10", "1")]
+      columnToTable = HashMap.fromList [("1", "0"), ("10", "1"), ("11", "2"), ("12", "2"), ("13", "2"), ("14", "2"), ("2", "0"), ("3", "0"), ("4", "0"), ("5", "0"), ("6", "0"), ("7", "0"), ("8", "0"), ("9", "1")]
       tableToColumns = HashMap.fromList [("0", ["1", "2", "3", "4", "5", "6", "7", "8"]), ("1", ["9", "10"]), ("2", ["11", "12", "13", "14"])]
-      foreignKeys = HashMap.fromList [("9", "1"), ("10", "11")]
-      foreignKeysTables = HashMap.fromList [("1", ["0", "2"])]
+      foreignKeys = HashMap.fromList [("10", "11"), ("9", "1")]
       primaryKeys = ["1", "11"]
-   in SQLSchema {sQLSchema_columnNames = columnNames, sQLSchema_tableNames = tableNames, sQLSchema_columnToTable = columnToTable, sQLSchema_tableToColumns = tableToColumns, sQLSchema_foreignKeys = foreignKeys, sQLSchema_foreignKeysTables = foreignKeysTables, sQLSchema_primaryKeys = primaryKeys}
+   in SQLSchema {sQLSchema_columnNames = columnNames, sQLSchema_columnTypes = columnTypes, sQLSchema_tableNames = tableNames, sQLSchema_columnToTable = columnToTable, sQLSchema_tableToColumns = tableToColumns, sQLSchema_foreignKeys = foreignKeys, sQLSchema_primaryKeys = primaryKeys}
 
 pets1Queries :: [Text.Text]
 pets1Queries =
@@ -48,7 +48,8 @@ pets1Queries =
 pets1ParserTests :: TestItem
 pets1ParserTests =
   Group "pets_1" $
-    (ParseQueryExprWithGuards pets1Schema <$> pets1Queries)
+    (ParseQueryExprWithGuardsAndTypeChecking pets1Schema <$> pets1Queries)
+      <> (ParseQueryExprWithGuards pets1Schema <$> pets1Queries)
       <> (ParseQueryExprWithoutGuards pets1Schema <$> pets1Queries)
       <> (ParseQueryExprFails pets1Schema <$> [])
 

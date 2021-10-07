@@ -30,9 +30,9 @@ import Data.Maybe (catMaybes, fromMaybe)
 import qualified Data.Text as Text (Text, empty, length, pack, stripPrefix, unpack)
 import qualified Data.Text.Encoding as Text
 import Language.SQL.SpiderSQL.Lexer (lexSpiderSQL)
-import Language.SQL.SpiderSQL.Parse (ParserEnv (..), ParserEnvWithGuards (..), mkParserState, spiderSQL, withGuards)
+import Language.SQL.SpiderSQL.Parse (ParserEnv (..), ParserEnvWithGuards (..), mkParserStateTC, mkParserStateUD, spiderSQL, withGuards)
 import Language.SQL.SpiderSQL.Prelude (caselessString)
-import Language.SQL.SpiderSQL.Syntax (SpiderSQL)
+import Language.SQL.SpiderSQL.Syntax (SX (..), SpiderSQLTC, SpiderSQLUD)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as HTTP
 import qualified Picard.Picard.Client as Picard
@@ -58,8 +58,9 @@ data PicardState = PicardState
   { counter :: TVar Int,
     sqlSchemas :: TVar (HashMap.HashMap Picard.DBId Picard.SQLSchema),
     tokenizer :: TVar (Maybe Tokenizers.Tokenizer),
-    partialSpiderSQLParsesWithGuards :: TVar (HashMap.HashMap Picard.InputIds (PartialParse SpiderSQL)),
-    partialSpiderSQLParsesWithoutGuards :: TVar (HashMap.HashMap Picard.InputIds (PartialParse SpiderSQL)),
+    partialSpiderSQLParsesWithGuardsAndTypeChecking :: TVar (HashMap.HashMap Picard.InputIds (PartialParse SpiderSQLTC)),
+    partialSpiderSQLParsesWithGuards :: TVar (HashMap.HashMap Picard.InputIds (PartialParse SpiderSQLUD)),
+    partialSpiderSQLParsesWithoutGuards :: TVar (HashMap.HashMap Picard.InputIds (PartialParse SpiderSQLUD)),
     partialSpiderSQLLexes :: TVar (HashMap.HashMap Picard.InputIds (PartialParse [String]))
   }
 
@@ -70,6 +71,7 @@ initPicardState =
       <$> newTVar 0
         <*> newTVar mempty
         <*> newTVar Nothing
+        <*> newTVar mempty
         <*> newTVar mempty
         <*> newTVar mempty
         <*> newTVar mempty
@@ -450,6 +452,69 @@ batchFeedIO counter sqlSchemas mkMainParser maybeTokenizer partialParses inputId
         toResultIO (Left timeoutFailure) = pure $ Picard.FeedResult_feedTimeoutFailure timeoutFailure
         toResultIO (Right (PartialParse _ r)) = toResult r
 
+batchFeedIO' counter sqlSchemas mkMainParser tokenizer partialParses inputIds topTokens =
+  do
+    decode <- getDecode tokenizer
+    schemas <- readTVarIO sqlSchemas
+    -- traverse
+    -- mapPool (length inputIds)
+    mapConcurrently
+      ( \(batchId, inputIds', token) ->
+          evalStateT
+            ( runExceptT
+                ( do
+                    _ <- liftIO . atomically $ nukeParserCacheEverySTM 10000 counter partialParses
+                    let microSeconds = 10000000
+                    PartialParse decodedInputIds' partialParseResult <-
+                      resultOrTimeout
+                        microSeconds
+                        ( do
+                            parses <- readTVarIO partialParses
+                            !lr <- lookupResultIO schemas mkMainParser decode parses inputIds'
+                            pure lr
+                        )
+                        >>= ( \case
+                                Cached partialParse -> pure partialParse
+                                Fresh partialParse -> trace ("Server: Cached inputIds " <> show inputIds') . liftIO . atomically $ do
+                                  modifyTVar partialParses $ HashMap.insert inputIds' partialParse
+                                  pure partialParse
+                            )
+                    (decoded, decodedToken) <- decodedTokenFromDifferenceM decode inputIds' token decodedInputIds'
+                    modify (\debugInfo -> debugInfo {debugDecodedInputIds = Just decodedInputIds'})
+                    partialParseResult' <-
+                      resultOrTimeout
+                        microSeconds
+                        $ let !r =
+                                Atto.feed
+                                  partialParseResult
+                                  ( case decodedToken of
+                                      "</s>" -> Text.empty
+                                      s -> s
+                                  )
+                           in pure r
+                    let partialParse = PartialParse decoded partialParseResult'
+                    liftIO . atomically . modifyTVar partialParses $ HashMap.insert (inputIds' ++ [token]) partialParse
+                    pure partialParse
+                )
+                >>= ( \case
+                        Left timeoutFailure -> pure $ Picard.FeedResult_feedTimeoutFailure timeoutFailure
+                        Right (PartialParse _ r) -> toResult r
+                    )
+                <&> Picard.BatchFeedResult batchId token
+            )
+            ( mkDebugInfo
+                { debugInputIds = Just inputIds',
+                  debugToken = Just token
+                }
+            )
+      )
+      . concat
+      . zipWith3
+        (\batchId inputIds' tokens -> (batchId,inputIds',) <$> tokens)
+        [0 :: Picard.BatchId ..]
+        inputIds
+      $ topTokens
+
 mapPool :: forall a b t. Traversable t => Int -> (a -> IO b) -> t a -> IO (t b)
 mapPool size f xs = do
   sem <- MSem.new size
@@ -458,10 +523,12 @@ mapPool size f xs = do
 picardHandler :: forall a. PicardState -> Picard.PicardCommand a -> IO a
 picardHandler PicardState {..} = go
   where
-    mkSpiderSQLParserWithGuards :: Picard.SQLSchema -> Atto.Parser SpiderSQL
-    mkSpiderSQLParserWithGuards = runReaderT (spiderSQL mkParserState) . ParserEnv (ParserEnvWithGuards withGuards)
-    mkSpiderSQLParserWithoutGuards :: Picard.SQLSchema -> Atto.Parser SpiderSQL
-    mkSpiderSQLParserWithoutGuards = runReaderT (spiderSQL mkParserState) . ParserEnv (ParserEnvWithGuards (const id))
+    mkSpiderSQLParserWithGuardsAndTypeChecking :: Picard.SQLSchema -> Atto.Parser SpiderSQLTC
+    mkSpiderSQLParserWithGuardsAndTypeChecking = runReaderT (spiderSQL STC mkParserStateTC) . ParserEnv (ParserEnvWithGuards (withGuards STC))
+    mkSpiderSQLParserWithGuards :: Picard.SQLSchema -> Atto.Parser SpiderSQLUD
+    mkSpiderSQLParserWithGuards = runReaderT (spiderSQL SUD mkParserStateUD) . ParserEnv (ParserEnvWithGuards (withGuards SUD))
+    mkSpiderSQLParserWithoutGuards :: Picard.SQLSchema -> Atto.Parser SpiderSQLUD
+    mkSpiderSQLParserWithoutGuards = runReaderT (spiderSQL SUD mkParserStateUD) . ParserEnv (ParserEnvWithGuards (const id))
     mkSpiderSQLLexer :: Picard.SQLSchema -> Atto.Parser [String]
     mkSpiderSQLLexer = runReaderT lexSpiderSQL
     go (Picard.RegisterSQLSchema dbId sqlSchema) =
@@ -472,6 +539,7 @@ picardHandler PicardState {..} = go
             Just _ -> throwSTM $ Picard.RegisterSQLSchemaException dbId "Database schema is already registered"
             Nothing -> do
               modifyTVar sqlSchemas (HashMap.insert dbId sqlSchema)
+              initializeParserCacheSTM mkSpiderSQLParserWithGuardsAndTypeChecking sqlSchemas partialSpiderSQLParsesWithGuardsAndTypeChecking
               initializeParserCacheSTM mkSpiderSQLParserWithGuards sqlSchemas partialSpiderSQLParsesWithGuards
               initializeParserCacheSTM mkSpiderSQLParserWithoutGuards sqlSchemas partialSpiderSQLParsesWithoutGuards
               initializeParserCacheSTM mkSpiderSQLLexer sqlSchemas partialSpiderSQLLexes
@@ -481,6 +549,7 @@ picardHandler PicardState {..} = go
         maybeOldTokenizer <- atomically $ do
           maybeOldTokenizer <- readTVar tokenizer
           writeTVar tokenizer . Just $ tok
+          initializeParserCacheSTM mkSpiderSQLParserWithGuardsAndTypeChecking sqlSchemas partialSpiderSQLParsesWithGuardsAndTypeChecking
           initializeParserCacheSTM mkSpiderSQLParserWithGuards sqlSchemas partialSpiderSQLParsesWithGuards
           initializeParserCacheSTM mkSpiderSQLParserWithoutGuards sqlSchemas partialSpiderSQLParsesWithoutGuards
           initializeParserCacheSTM mkSpiderSQLLexer sqlSchemas partialSpiderSQLLexes
@@ -488,6 +557,9 @@ picardHandler PicardState {..} = go
         case maybeOldTokenizer of
           Just oldTok -> Tokenizers.freeTokenizer oldTok
           Nothing -> pure ()
+    go (Picard.Feed inputIds token Picard.Mode_PARSING_WITH_GUARDS_AND_TYPE_CHECKING) =
+      trace ("Feed parsing with guards " <> show inputIds <> " " <> show token) $
+        feedIO counter sqlSchemas mkSpiderSQLParserWithGuardsAndTypeChecking tokenizer partialSpiderSQLParsesWithGuardsAndTypeChecking inputIds token
     go (Picard.Feed inputIds token Picard.Mode_PARSING_WITH_GUARDS) =
       trace ("Feed parsing with guards " <> show inputIds <> " " <> show token) $
         feedIO counter sqlSchemas mkSpiderSQLParserWithGuards tokenizer partialSpiderSQLParsesWithGuards inputIds token
@@ -504,72 +576,14 @@ picardHandler PicardState {..} = go
         . Picard.ModeException
         . Text.pack
         $ "Unknown mode " <> show n
+    go (Picard.BatchFeed inputIds topTokens Picard.Mode_PARSING_WITH_GUARDS_AND_TYPE_CHECKING) =
+      batchFeedIO' counter sqlSchemas mkSpiderSQLParserWithGuardsAndTypeChecking tokenizer partialSpiderSQLParsesWithGuardsAndTypeChecking inputIds topTokens
     go (Picard.BatchFeed inputIds topTokens Picard.Mode_PARSING_WITH_GUARDS) =
-      do
-        decode <- getDecode tokenizer
-        schemas <- readTVarIO sqlSchemas
-        -- traverse
-        -- mapPool (length inputIds)
-        mapConcurrently
-          ( \(batchId, inputIds', token) ->
-              evalStateT
-                ( runExceptT
-                    ( do
-                        _ <- liftIO . atomically $ nukeParserCacheEverySTM 10000 counter partialSpiderSQLParsesWithGuards
-                        let microSeconds = 10000000
-                        PartialParse decodedInputIds' partialParseResult <-
-                          resultOrTimeout
-                            microSeconds
-                            ( do
-                                parses <- readTVarIO partialSpiderSQLParsesWithGuards
-                                !lr <- lookupResultIO schemas mkSpiderSQLParserWithGuards decode parses inputIds'
-                                pure lr
-                            )
-                            >>= ( \case
-                                    Cached partialParse -> pure partialParse
-                                    Fresh partialParse -> trace ("Server: Cached inputIds " <> show inputIds') . liftIO . atomically $ do
-                                      modifyTVar partialSpiderSQLParsesWithGuards $ HashMap.insert inputIds' partialParse
-                                      pure partialParse
-                                )
-                        (decoded, decodedToken) <- decodedTokenFromDifferenceM decode inputIds' token decodedInputIds'
-                        modify (\debugInfo -> debugInfo {debugDecodedInputIds = Just decodedInputIds'})
-                        partialParseResult' <-
-                          resultOrTimeout
-                            microSeconds
-                            $ let !r =
-                                    Atto.feed
-                                      partialParseResult
-                                      ( case decodedToken of
-                                          "</s>" -> Text.empty
-                                          s -> s
-                                      )
-                               in pure r
-                        let partialParse = PartialParse decoded partialParseResult'
-                        liftIO . atomically . modifyTVar partialSpiderSQLParsesWithGuards $ HashMap.insert (inputIds' ++ [token]) partialParse
-                        pure partialParse
-                    )
-                    >>= ( \case
-                            Left timeoutFailure -> pure $ Picard.FeedResult_feedTimeoutFailure timeoutFailure
-                            Right (PartialParse _ r) -> toResult r
-                        )
-                    <&> Picard.BatchFeedResult batchId token
-                )
-                ( mkDebugInfo
-                    { debugInputIds = Just inputIds',
-                      debugToken = Just token
-                    }
-                )
-          )
-          . concat
-          . zipWith3
-            (\batchId inputIds' tokens -> (batchId,inputIds',) <$> tokens)
-            [0 :: Picard.BatchId ..]
-            inputIds
-          $ topTokens
+      batchFeedIO' counter sqlSchemas mkSpiderSQLParserWithGuards tokenizer partialSpiderSQLParsesWithGuards inputIds topTokens
     go (Picard.BatchFeed inputIds topTokens Picard.Mode_PARSING_WITHOUT_GUARDS) =
-      batchFeedIO counter sqlSchemas mkSpiderSQLParserWithoutGuards tokenizer partialSpiderSQLParsesWithoutGuards inputIds topTokens
+      batchFeedIO' counter sqlSchemas mkSpiderSQLParserWithoutGuards tokenizer partialSpiderSQLParsesWithoutGuards inputIds topTokens
     go (Picard.BatchFeed inputIds topTokens Picard.Mode_LEXING) =
-      batchFeedIO counter sqlSchemas mkSpiderSQLLexer tokenizer partialSpiderSQLLexes inputIds topTokens
+      batchFeedIO' counter sqlSchemas mkSpiderSQLLexer tokenizer partialSpiderSQLLexes inputIds topTokens
     go (Picard.BatchFeed _inputIds _token (Picard.Mode__UNKNOWN n)) =
       throw
         . Picard.FeedException
@@ -604,23 +618,23 @@ testServer = do
       action :: Thrift.Thrift Picard.Picard ()
       action = do
         Picard.registerSQLSchema "test" $
-          Picard.SQLSchema
-            (HashMap.fromList [("0", "column")])
-            (HashMap.fromList [("0", "table")])
-            (HashMap.fromList [("0", "0")])
-            (HashMap.fromList [("0", ["0"])])
-            mempty
-            mempty
-            mempty
+          let columnNames = HashMap.fromList [("0", "column")]
+              columnTypes = HashMap.fromList [("0", Picard.ColumnType_NUMBER)]
+              tableNames = HashMap.fromList [("0", "table")]
+              columnToTable = HashMap.fromList [("0", "0")]
+              tableToColumns = HashMap.fromList [("0", ["0"])]
+              foreignKeys = HashMap.fromList []
+              primaryKeys = []
+           in Picard.SQLSchema {sQLSchema_columnNames = columnNames, sQLSchema_columnTypes = columnTypes, sQLSchema_tableNames = tableNames, sQLSchema_columnToTable = columnToTable, sQLSchema_tableToColumns = tableToColumns, sQLSchema_foreignKeys = foreignKeys, sQLSchema_primaryKeys = primaryKeys}
         Picard.registerSQLSchema "car_1" $
-          Picard.SQLSchema
-            (HashMap.fromList [("1", "ContId"), ("10", "ModelId"), ("11", "Maker"), ("12", "Model"), ("13", "MakeId"), ("14", "Model"), ("15", "Make"), ("16", "Id"), ("17", "MPG"), ("18", "Cylinders"), ("19", "Edispl"), ("2", "Continent"), ("20", "Horsepower"), ("21", "Weight"), ("22", "Accelerate"), ("23", "Year"), ("3", "CountryId"), ("4", "CountryName"), ("5", "Continent"), ("6", "Id"), ("7", "Maker"), ("8", "FullName"), ("9", "Country")])
-            (HashMap.fromList [("0", "continents"), ("1", "countries"), ("2", "car_makers"), ("3", "model_list"), ("4", "car_names"), ("5", "cars_data")])
-            (HashMap.fromList [("1", "0"), ("10", "3"), ("11", "3"), ("12", "3"), ("13", "4"), ("14", "4"), ("15", "4"), ("16", "5"), ("17", "5"), ("18", "5"), ("19", "5"), ("2", "0"), ("20", "5"), ("21", "5"), ("22", "5"), ("23", "5"), ("3", "1"), ("4", "1"), ("5", "1"), ("6", "2"), ("7", "2"), ("8", "2"), ("9", "2")])
-            (HashMap.fromList [("0", ["1", "2"]), ("1", ["3", "4", "5"]), ("2", ["6", "7", "8", "9"]), ("3", ["10", "11", "12"]), ("4", ["13", "14", "15"]), ("5", ["16", "17", "18", "19", "20", "21", "22", "23"])])
-            mempty
-            mempty
-            mempty
+          let columnNames = HashMap.fromList [("1", "ContId"), ("10", "ModelId"), ("11", "Maker"), ("12", "Model"), ("13", "MakeId"), ("14", "Model"), ("15", "Make"), ("16", "Id"), ("17", "MPG"), ("18", "Cylinders"), ("19", "Edispl"), ("2", "Continent"), ("20", "Horsepower"), ("21", "Weight"), ("22", "Accelerate"), ("23", "Year"), ("3", "CountryId"), ("4", "CountryName"), ("5", "Continent"), ("6", "Id"), ("7", "Maker"), ("8", "FullName"), ("9", "Country")]
+              columnTypes = HashMap.fromList [("1", Picard.ColumnType_NUMBER), ("10", Picard.ColumnType_NUMBER), ("11", Picard.ColumnType_NUMBER), ("12", Picard.ColumnType_TEXT), ("13", Picard.ColumnType_NUMBER), ("14", Picard.ColumnType_TEXT), ("15", Picard.ColumnType_TEXT), ("16", Picard.ColumnType_NUMBER), ("17", Picard.ColumnType_TEXT), ("18", Picard.ColumnType_NUMBER), ("19", Picard.ColumnType_NUMBER), ("2", Picard.ColumnType_TEXT), ("20", Picard.ColumnType_TEXT), ("21", Picard.ColumnType_NUMBER), ("22", Picard.ColumnType_NUMBER), ("23", Picard.ColumnType_NUMBER), ("3", Picard.ColumnType_NUMBER), ("4", Picard.ColumnType_TEXT), ("5", Picard.ColumnType_NUMBER), ("6", Picard.ColumnType_NUMBER), ("7", Picard.ColumnType_TEXT), ("8", Picard.ColumnType_TEXT), ("9", Picard.ColumnType_TEXT)]
+              tableNames = HashMap.fromList [("0", "continents"), ("1", "countries"), ("2", "car_makers"), ("3", "model_list"), ("4", "car_names"), ("5", "cars_data")]
+              columnToTable = HashMap.fromList [("1", "0"), ("10", "3"), ("11", "3"), ("12", "3"), ("13", "4"), ("14", "4"), ("15", "4"), ("16", "5"), ("17", "5"), ("18", "5"), ("19", "5"), ("2", "0"), ("20", "5"), ("21", "5"), ("22", "5"), ("23", "5"), ("3", "1"), ("4", "1"), ("5", "1"), ("6", "2"), ("7", "2"), ("8", "2"), ("9", "2")]
+              tableToColumns = HashMap.fromList [("0", ["1", "2"]), ("1", ["3", "4", "5"]), ("2", ["6", "7", "8", "9"]), ("3", ["10", "11", "12"]), ("4", ["13", "14", "15"]), ("5", ["16", "17", "18", "19", "20", "21", "22", "23"])]
+              foreignKeys = HashMap.fromList [("11", "6"), ("14", "12"), ("16", "13"), ("5", "1"), ("9", "3")]
+              primaryKeys = ["1", "3", "6", "10", "13", "16"]
+           in Picard.SQLSchema {sQLSchema_columnNames = columnNames, sQLSchema_columnTypes = columnTypes, sQLSchema_tableNames = tableNames, sQLSchema_columnToTable = columnToTable, sQLSchema_tableToColumns = tableToColumns, sQLSchema_foreignKeys = foreignKeys, sQLSchema_primaryKeys = primaryKeys}
         manager <- lift $ HTTP.newTlsManagerWith HTTP.tlsManagerSettings
         request <- lift $ HTTP.parseRequest "https://huggingface.co/t5-base/resolve/main/tokenizer.json"
         response <- lift $ HTTP.httpLbs request manager

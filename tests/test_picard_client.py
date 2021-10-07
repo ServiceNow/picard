@@ -1,6 +1,4 @@
 import asyncio
-import subprocess
-import time
 import sys
 from typing import AsyncContextManager, Dict, List, Callable, Any
 import logging
@@ -15,6 +13,7 @@ from picard.types import (
     RegisterSQLSchemaException,
     FeedException,
     Mode,
+    ColumnType,
 )
 from seq2seq.utils.picard_model_wrapper import PicardLauncher
 
@@ -163,11 +162,11 @@ def in_vitro_picard(
 sql_schemas = {
     "test": SQLSchema(
         columnNames={"0": "column"},
+        columnTypes={"0": ColumnType.NUMBER},
         tableNames={"0": "table"},
         columnToTable={"0": "0"},
         tableToColumns={"0": ["0"]},
         foreignKeys=dict(),
-        foreignKeysTables=dict(),
         primaryKeys=list(),
     ),
     "car_1": SQLSchema(
@@ -195,6 +194,31 @@ sql_schemas = {
             "7": "Maker",
             "8": "FullName",
             "9": "Country",
+        },
+        columnTypes={
+            "1": ColumnType.NUMBER,
+            "10": ColumnType.NUMBER,
+            "11": ColumnType.NUMBER,
+            "12": ColumnType.TEXT,
+            "13": ColumnType.NUMBER,
+            "14": ColumnType.TEXT,
+            "15": ColumnType.TEXT,
+            "16": ColumnType.NUMBER,
+            "17": ColumnType.TEXT,
+            "18": ColumnType.NUMBER,
+            "19": ColumnType.NUMBER,
+            "2": ColumnType.TEXT,
+            "20": ColumnType.TEXT,
+            "21": ColumnType.NUMBER,
+            "22": ColumnType.NUMBER,
+            "23": ColumnType.NUMBER,
+            "3": ColumnType.NUMBER,
+            "4": ColumnType.TEXT,
+            "5": ColumnType.NUMBER,
+            "6": ColumnType.NUMBER,
+            "7": ColumnType.TEXT,
+            "8": ColumnType.TEXT,
+            "9": ColumnType.TEXT,
         },
         tableNames={
             "0": "continents",
@@ -238,8 +262,7 @@ sql_schemas = {
             "5": ["16", "17", "18", "19", "20", "21", "22", "23"],
         },
         foreignKeys={"11": "6", "14": "12", "16": "13", "5": "1", "9": "3"},
-        foreignKeysTables={},
-        primaryKeys=[],
+        primaryKeys=["1", "3", "6", "10", "13", "16"],
     ),
 }
 

@@ -1,3 +1,4 @@
+from seq2seq.utils.picard_model_wrapper import get_picard_schema
 import pytest
 from dataclasses import replace
 from transformers.models.auto import AutoTokenizer
@@ -150,12 +151,42 @@ def test_dataset_loader(
 
     if split == "train":
         dataset = dataset_splits.train_split.dataset
+        schemas = dataset_splits.train_split.schemas
     elif split == "eval":
         dataset = dataset_splits.eval_split.dataset
+        schemas = dataset_splits.eval_split.schemas
     elif split == "test":
         dataset = dataset_splits.test_split.dataset
+        schemas = dataset_splits.test_split.schemas
     else:
         raise NotImplementedError()
+    
+    print(list(schemas.keys()))
+
+    for db_id, schema in schemas.items():
+        if "academic" in db_id or "scholar" in db_id or "geo" in db_id or "imdb" in db_id or "yelp" in db_id or "restaurants" in db_id:
+            sql_schema = get_picard_schema(**schema)
+            c_names_str = ", ".join((f"(\"{c_id}\", \"{c_name}\")" for c_id, c_name in sql_schema.columnNames.items()))
+            c_type_str = lambda c_type: str(c_type).replace('.', "_")
+            c_types_str = ", ".join((f"(\"{c_id}\", {c_type_str(c_type)})" for c_id, c_type in sql_schema.columnTypes.items()))
+            t_names_str = ", ".join((f"(\"{t_id}\", \"{t_name}\")" for t_id, t_name in sql_schema.tableNames.items()))
+            c_to_t_str = ", ".join((f"(\"{c_id}\", \"{t_id}\")" for c_id, t_id in sql_schema.columnToTable.items()))
+            c_ids_str = lambda c_ids: ", ".join((f"\"{c_id}\"" for c_id in c_ids))
+            t_to_cs_str = ", ".join((f"(\"{t_id}\", [{c_ids_str(c_ids)}])" for t_id, c_ids in sql_schema.tableToColumns.items()))
+            fks_str = ", ".join((f"(\"{c_id}\", \"{other_cid}\")" for c_id, other_cid in sql_schema.foreignKeys.items()))
+            pks_str = ", ".join((f"\"{pk}\"" for pk in sql_schema.primaryKeys))
+            schema_str = "SQLSchema {sQLSchema_columnNames = columnNames, sQLSchema_columnTypes = columnTypes, sQLSchema_tableNames = tableNames, sQLSchema_columnToTable = columnToTable, sQLSchema_tableToColumns = tableToColumns, sQLSchema_foreignKeys = foreignKeys, sQLSchema_primaryKeys = primaryKeys}" 
+            print(f"""
+{db_id}:
+  let columnNames = HashMap.fromList [{c_names_str}]
+      columnTypes = HashMap.fromList [{c_types_str}]
+      tableNames = HashMap.fromList [{t_names_str}]
+      columnToTable = HashMap.fromList [{c_to_t_str}]
+      tableToColumns = HashMap.fromList [{t_to_cs_str}]
+      foreignKeys = HashMap.fromList [{fks_str}]
+      primaryKeys = [{pks_str}]
+   in {schema_str}
+            """)
 
     max_input_ids_len = max(len(item["input_ids"]) for item in dataset)
     assert max_input_ids_len == expected_max_input_ids_len
