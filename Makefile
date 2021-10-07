@@ -49,6 +49,7 @@ build-dev-image:
 		-f Dockerfile \
 		--tag tscholak/$(DEV_IMAGE_NAME):$(GIT_HEAD_REF) \
 		--tag tscholak/$(DEV_IMAGE_NAME):cache \
+		--tag tscholak/$(DEV_IMAGE_NAME):devcontainer \
 		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
 		--target dev \
 		--cache-from type=registry,ref=tscholak/$(DEV_IMAGE_NAME):cache \

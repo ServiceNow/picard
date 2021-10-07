@@ -1,0 +1,19 @@
+{
+    "recommendations": [
+        "ms-vscode-remote.remote-containers",
+        "ms-vscode-remote.remote-ssh",
+        "ms-vscode-remote.remote-ssh-edit",
+        "ms-azuretools.vscode-docker",
+        "mrkou47.thrift-syntax-support",
+        "haskell.haskell",
+        "justusadam.language-haskell",
+        "ms-toolsai.jupyter",
+        "ms-python.vscode-pylance",
+        "ms-python.python",
+        "rust-lang.rust",
+        "ms-vsliveshare.vsliveshare",
+        "ms-vsliveshare.vsliveshare-audio",
+        "alexcvzz.vscode-sqlite",
+        "bungcip.better-toml"
+    ]
+}
