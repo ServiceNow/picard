@@ -169,17 +169,17 @@ Let's look at the numbers:
   <tr>
     <td><a href="https://huggingface.co/tscholak/3vnuv1vf">tscholak/3vnuv1vf</a> w PICARD</td>
     <td><a href="https://github.com/google-research/text-to-text-transfer-transformer/blob/main/released_checkpoints.md#lm-adapted-t511lm100k">t5.1.1.lm100k.large</a></td>
-    <td>73.6 %</td>
+    <td>74.8 %</td>
     <td>—</td>
-    <td>—</td>
+    <td>79.2 %</td>
     <td>—</td>
   </tr>
   <tr>
     <td><a href="https://huggingface.co/tscholak/3vnuv1vf">tscholak/3vnuv1vf</a> w/o PICARD</td>
     <td><a href="https://github.com/google-research/text-to-text-transfer-transformer/blob/main/released_checkpoints.md#lm-adapted-t511lm100k">t5.1.1.lm100k.large</a></td>
-    <td>69.6 %</td>
+    <td>71.2 %</td>
     <td>—</td>
-    <td>—</td>
+    <td>74.4 %</td>
     <td>—</td>
   </tr>
   <tr>
