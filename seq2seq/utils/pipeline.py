@@ -115,7 +115,7 @@ class Text2SQLGenerationPipeline(Text2TextGenerationPipeline):
         if hasattr(self.model, "add_schema"):
             self.model.add_schema(db_id=input.db_id, db_info=schema)
         serialized_schema = serialize_schema(
-            question=input,
+            question=input.utterance,
             db_path=self.db_path,
             db_id=input.db_id,
             db_column_names=schema["db_column_names"],
