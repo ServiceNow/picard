@@ -124,8 +124,11 @@ class Text2SQLGenerationPipeline(Text2TextGenerationPipeline):
             raise ValueError(
                 f" `inputs`: {inputs} have the wrong format. The should be either of type `str` or type `list`"
             )
-        inputs = super(Text2TextGenerationPipeline, self)._parse_and_tokenize(
-            inputs, padding=padding, truncation=truncation
+        inputs = self.tokenizer(
+            inputs,
+            return_tensors=self.framework,
+            padding=padding,
+            truncation=truncation,
         )
         # This is produced by tokenizers but is an invalid generate kwargs
         if "token_type_ids" in inputs:
@@ -249,8 +252,11 @@ class ConversationalText2SQLGenerationPipeline(Text2TextGenerationPipeline):
             raise ValueError(
                 f" `inputs`: {inputs} have the wrong format. The should be lists with elements either of type `str` or type `list`"
             )
-        inputs = super(Text2TextGenerationPipeline, self)._parse_and_tokenize(
-            inputs, padding=padding, truncation=truncation
+        inputs = self.tokenizer(
+            inputs,
+            return_tensors=self.framework,
+            padding=padding,
+            truncation=truncation,
         )
         # This is produced by tokenizers but is an invalid generate kwargs
         if "token_type_ids" in inputs:
