@@ -297,6 +297,33 @@ The evaluation results will be stored there.
 
 The default configuration is stored in `configs/eval.json`.
 
+### Serving
+
+A trained model can be served using the `seq2seq/serve_seq2seq.py` script.
+The configuration file can be found in `configs/serve.json`.
+You can start serving with:
+```
+$ make serve
+```
+By default, the 800-million-parameter <a href="https://huggingface.co/tscholak/3vnuv1vf">tscholak/3vnuv1vf</a> model will be loaded. You can also load a different model by specifying the model name in the configuration file. The device to use can be specified as well. The default is to use the first available GPU. CPU can be used by specifying `-1`.
+
+When the script is called, it uses the folder specified by the `db_path` option to look for SQL database files.
+The default folder is `database`, which will be created in the current directory.
+Initially, this folder will be empty, and you can add your own SQL files to it.
+The structure of the folder should be like this:
+```
+database/
+  my_1st_database/
+    my_1st_database.sqlite
+  my_2nd_database/
+    my_2nd_database.sqlite
+```
+where `my_1st_database` and `my_2nd_database` are the `db_id`s of the databases.
+
+Once the server is up and running, use the Swagger UI to test inference with the `/ask` endpoint.
+The server will be listening at `http://localhost:8000/`,
+and the Swagger UI will be available at `http://localhost:8080/docs#/default/ask_ask__db_id___question__get`.
+
 ### Docker
 
 There are three docker images that can be used to run the code:

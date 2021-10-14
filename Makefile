@@ -163,3 +163,18 @@ eval_cosql: pull-eval-image
 		--mount type=bind,source=$(PWD)/wandb,target=/app/wandb \
 		tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF) \
 		/bin/bash -c "python seq2seq/run_seq2seq.py configs/eval_cosql.json"
+
+.PHONY: serve
+serve: pull-eval-image
+	mkdir -p -m 777 database
+	mkdir -p -m 777 transformers_cache
+	docker run \
+		-it \
+		--rm \
+		--user 13011:13011 \
+		-p 8000:8000 \
+		--mount type=bind,source=$(PWD)/database,target=/database \
+		--mount type=bind,source=$(PWD)/transformers_cache,target=/transformers_cache \
+		--mount type=bind,source=$(PWD)/configs,target=/app/configs \
+		tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF) \
+		/bin/bash -c "python seq2seq/serve_seq2seq.py configs/serve.json"
