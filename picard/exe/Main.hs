@@ -1,11 +1,17 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneKindSignatures #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE NoStarIsType #-}
 
 module Main (main, testServer) where
 
-import Control.Applicative (Alternative (empty, (<|>)), optional)
+import Control.Applicative (Alternative (empty, many, (<|>)), optional)
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (mapConcurrently)
 import qualified Control.Concurrent.MSem as MSem
@@ -18,6 +24,8 @@ import Control.Monad.Reader (runReaderT)
 import Control.Monad.STM (STM, atomically, throwSTM)
 import Control.Monad.State.Strict (MonadState (get), evalStateT, modify)
 import Control.Monad.Trans (MonadTrans (lift))
+import Control.Monad.Trans.Free (FreeT)
+import qualified Control.Monad.Yoctoparsec.Class as Yocto
 import qualified Data.Attoparsec.Text as Atto (IResult (..), Parser, Result, char, endOfInput, feed, many', parse, skipSpace, string)
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
@@ -25,8 +33,11 @@ import Data.Foldable (Foldable (foldl'))
 import Data.Function (on)
 import Data.Functor (($>), (<&>))
 import qualified Data.HashMap.Strict as HashMap
+import Data.Kind (Constraint, Type)
 import Data.List (sortBy)
 import Data.Maybe (catMaybes, fromMaybe)
+import Data.Text (Text)
+import qualified Data.Text as Text
 import qualified Data.Text as Text (Text, empty, length, pack, stripPrefix, unpack)
 import qualified Data.Text.Encoding as Text
 import Language.SQL.SpiderSQL.Lexer (lexSpiderSQL)
@@ -39,6 +50,8 @@ import qualified Picard.Picard.Client as Picard
 import qualified Picard.Picard.Service as Picard
 import qualified Picard.Types as Picard
 import System.Timeout (timeout)
+import Text.Parser.Char (CharParsing (char, string), spaces)
+import Text.Parser.Combinators (Parsing (eof))
 import qualified Thrift.Api as Thrift
 import qualified Thrift.Channel.HeaderChannel as Thrift
 import qualified Thrift.Protocol.Id as Thrift
@@ -49,6 +62,25 @@ import qualified Util.EventBase as Thrift
 
 trace :: forall a. String -> a -> a
 trace _ = id
+
+type HasRunParser :: Type -> Constraint
+class HasRunParser p where
+  type Result p :: Type
+  runParser :: p -> Result p
+  feed :: Result p -> Text -> Result p
+  -- finalize :: 
+
+instance HasRunParser (Atto.Parser a) where
+  type Result (Atto.Parser a) = Atto.Result a
+  runParser p = Atto.parse p mempty
+  feed = Atto.feed
+
+instance (Monad b, Foldable b) => HasRunParser (FreeT ((->) Char) b a) where
+  type Result (FreeT ((->) Char) b a) = b (Yocto.Result b Char a)
+  runParser p = Yocto.runParser p
+  feed r s = do
+    r' <- r
+    Yocto.feed r' . Text.unpack $ s
 
 data PartialParse a
   = PartialParse !Text.Text !(Atto.Result a)
@@ -77,8 +109,10 @@ initPicardState =
         <*> newTVar mempty
 
 mkSchemaParser ::
+  forall m.
+  CharParsing m =>
   HashMap.HashMap Picard.DBId Picard.SQLSchema ->
-  Atto.Parser Picard.SQLSchema
+  m Picard.SQLSchema
 mkSchemaParser sqlSchemas =
   foldl'
     (\agg (dbId, schema) -> agg <|> caselessString (Text.unpack dbId) $> schema)
@@ -86,24 +120,25 @@ mkSchemaParser sqlSchemas =
     (sortBy (compare `on` (negate . Text.length . fst)) (HashMap.toList sqlSchemas))
 
 mkParser ::
-  forall a.
-  Atto.Parser Picard.SQLSchema ->
-  (Picard.SQLSchema -> Atto.Parser a) ->
-  Atto.Parser a
+  forall a m.
+  (Monad m, CharParsing m) =>
+  m Picard.SQLSchema ->
+  (Picard.SQLSchema -> m a) ->
+  m a
 mkParser schemaParser mkMainParser = do
   _ <-
-    Atto.skipSpace
-      *> Atto.many'
-        ( Atto.char '<'
-            *> (Atto.string "pad" <|> Atto.string "s" <|> Atto.string "/s")
-            <* Atto.char '>'
+    spaces
+      *> many
+        ( char '<'
+            *> (string "pad" <|> string "s" <|> string "/s")
+            <* char '>'
         )
-        <* Atto.skipSpace
+        <* spaces
   schema <- schemaParser
-  _ <- Atto.skipSpace *> Atto.char '|' <* Atto.skipSpace
+  _ <- spaces *> char '|' <* spaces
   mkMainParser schema
-    <* optional (Atto.skipSpace <* Atto.char ';')
-    <* Atto.endOfInput
+    <* optional (spaces <* char ';')
+    <* eof
 
 getPartialParse ::
   forall a.
@@ -452,6 +487,17 @@ batchFeedIO counter sqlSchemas mkMainParser maybeTokenizer partialParses inputId
         toResultIO (Left timeoutFailure) = pure $ Picard.FeedResult_feedTimeoutFailure timeoutFailure
         toResultIO (Right (PartialParse _ r)) = toResult r
 
+batchFeedIO' ::
+  forall a.
+  Show a =>
+  TVar Int ->
+  TVar (HashMap.HashMap Picard.DBId Picard.SQLSchema) ->
+  (Picard.SQLSchema -> Atto.Parser a) ->
+  TVar (Maybe Tokenizers.Tokenizer) ->
+  TVar (HashMap.HashMap Picard.InputIds (PartialParse a)) ->
+  [Picard.InputIds] ->
+  [[Picard.Token]] ->
+  IO [Picard.BatchFeedResult]
 batchFeedIO' counter sqlSchemas mkMainParser tokenizer partialParses inputIds topTokens =
   do
     decode <- getDecode tokenizer
