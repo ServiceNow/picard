@@ -108,6 +108,30 @@ class Text2SQLGenerationPipeline(Text2TextGenerationPipeline):
         )
         return spider_get_input(question=input, serialized_schema=serialized_schema, prefix=prefix)
 
+    def _parse_and_tokenize(
+        self, inputs: Union[str, List[str]], db_id: str, truncation: TruncationStrategy
+    ) -> BatchEncoding:
+        if isinstance(inputs, list):
+            assert (
+                self.tokenizer.pad_token_id is not None
+            ), "Please make sure that the tokenizer has a pad_token_id when using a batch input"
+            inputs = [self._pre_process(input=input, db_id=db_id) + input for input in inputs]
+            padding = True
+        elif isinstance(inputs, str):
+            inputs = self._pre_process(input=inputs, db_id=db_id)
+            padding = False
+        else:
+            raise ValueError(
+                f" `inputs`: {inputs} have the wrong format. The should be either of type `str` or type `list`"
+            )
+        inputs = super(Text2TextGenerationPipeline, self)._parse_and_tokenize(
+            inputs, padding=padding, truncation=truncation
+        )
+        # This is produced by tokenizers but is an invalid generate kwargs
+        if "token_type_ids" in inputs:
+            del inputs["token_type_ids"]
+        return inputs
+
 
 class ConversationalText2SQLGenerationPipeline(Text2TextGenerationPipeline):
     """
