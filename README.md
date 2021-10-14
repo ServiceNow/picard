@@ -322,7 +322,7 @@ where `my_1st_database` and `my_2nd_database` are the `db_id`s of the databases.
 
 Once the server is up and running, use the Swagger UI to test inference with the `/ask` endpoint.
 The server will be listening at `http://localhost:8000/`,
-and the Swagger UI will be available at `http://localhost:8080/docs#/default/ask_ask__db_id___question__get`.
+and the Swagger UI will be available at `http://localhost:8000/docs#/default/ask_ask__db_id___question__get`.
 
 ### Docker
 
