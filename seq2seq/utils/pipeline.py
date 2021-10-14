@@ -1,11 +1,18 @@
+from dataclasses import dataclass
 from typing import Union, List, Dict, Optional
-from transformers.pipelines.text2text_generation import Text2TextGenerationPipeline
+from transformers.pipelines.text2text_generation import ReturnType, Text2TextGenerationPipeline
 from transformers.tokenization_utils import TruncationStrategy
 from transformers.tokenization_utils_base import BatchEncoding
 from third_party.spider.preprocess.get_tables import dump_db_json_schema
 from seq2seq.utils.dataset import serialize_schema
 from seq2seq.utils.spider import spider_get_input
 from seq2seq.utils.cosql import cosql_get_input
+
+
+@dataclass
+class Text2SQLInput(object):
+    utterance: str
+    db_id: str
 
 
 class Text2SQLGenerationPipeline(Text2TextGenerationPipeline):
@@ -38,16 +45,7 @@ class Text2SQLGenerationPipeline(Text2TextGenerationPipeline):
         self.schema_cache: Dict[str, dict] = dict()
         super().__init__(*args, **kwargs)
 
-    def __call__(
-        self,
-        inputs: Union[str, List[str]],
-        db_id: str,
-        return_tensors: bool = False,
-        return_text: bool = True,
-        clean_up_tokenization_spaces: bool = False,
-        truncation: TruncationStrategy = TruncationStrategy.DO_NOT_TRUNCATE,
-        **generate_kwargs,
-    ):
+    def __call__(self, inputs: Union[Text2SQLInput, List[Text2SQLInput]], **kwargs):
         r"""
         Generate the output SQL expression(s) using text(s) given as inputs.
 
@@ -77,27 +75,49 @@ class Text2SQLGenerationPipeline(Text2TextGenerationPipeline):
             - **generated_token_ids** (:obj:`torch.Tensor` or :obj:`tf.Tensor`, present when ``return_tensors=True``)
               -- The token ids of the generated SQL.
         """
-        assert return_tensors or return_text, "You must specify return_tensors=True or return_text=True"
+        result = super().__call__(inputs, **kwargs)
+        if isinstance(result, dict):
+            return [result]
+        return result
 
-        with self.device_placement():
-            inputs = self._parse_and_tokenize(inputs, db_id=db_id, truncation=truncation)
-            outputs = self._generate(inputs, return_tensors, return_text, clean_up_tokenization_spaces, generate_kwargs)
-            for output in outputs:
-                if "generated_text" in output:
-                    output["generated_text"] = output["generated_text"].split("|", 1)[-1].strip()
-            return outputs
+    def preprocess(
+        self, inputs: Union[Text2SQLInput, List[Text2SQLInput]], truncation=TruncationStrategy.DO_NOT_TRUNCATE, **kwargs
+    ):
+        inputs = self._parse_and_tokenize(inputs, truncation=truncation, **kwargs)
+        return inputs
 
-    def _pre_process(self, input: str, db_id: str) -> str:
+    def _parse_and_tokenize(
+        self, inputs: Union[Text2SQLInput, List[Text2SQLInput]], truncation: TruncationStrategy
+    ) -> BatchEncoding:
+        if isinstance(inputs, list):
+            if self.tokenizer.pad_token_id is None:
+                raise ValueError("Please make sure that the tokenizer has a pad_token_id when using a batch input")
+            inputs = [self._pre_process(input=input) for input in inputs]
+            padding = True
+        elif isinstance(inputs, Text2SQLInput):
+            inputs = self._pre_process(input=inputs)
+            padding = False
+        else:
+            raise ValueError(
+                f" `inputs`: {inputs} have the wrong format. The should be either of type `Text2SQLInput` or type `List[Text2SQLInput]`"
+            )
+        inputs = self.tokenizer(inputs, padding=padding, truncation=truncation, return_tensors=self.framework)
+        # This is produced by tokenizers but is an invalid generate kwargs
+        if "token_type_ids" in inputs:
+            del inputs["token_type_ids"]
+        return inputs
+
+    def _pre_process(self, input: Text2SQLInput) -> str:
         prefix = self.prefix if self.prefix is not None else ""
-        if db_id not in self.schema_cache:
-            self.schema_cache[db_id] = get_schema(db_path=self.db_path, db_id=db_id)
-        schema = self.schema_cache[db_id]
+        if input.db_id not in self.schema_cache:
+            self.schema_cache[input.db_id] = get_schema(db_path=self.db_path, db_id=input.db_id)
+        schema = self.schema_cache[input.db_id]
         if hasattr(self.model, "add_schema"):
-            self.model.add_schema(db_id=db_id, db_info=schema)
+            self.model.add_schema(db_id=input.db_id, db_info=schema)
         serialized_schema = serialize_schema(
             question=input,
             db_path=self.db_path,
-            db_id=db_id,
+            db_id=input.db_id,
             db_column_names=schema["db_column_names"],
             db_table_names=schema["db_table_names"],
             schema_serialization_type=self.schema_serialization_type,
@@ -106,34 +126,23 @@ class Text2SQLGenerationPipeline(Text2TextGenerationPipeline):
             schema_serialization_with_db_content=self.schema_serialization_with_db_content,
             normalize_query=self.normalize_query,
         )
-        return spider_get_input(question=input, serialized_schema=serialized_schema, prefix=prefix)
+        return spider_get_input(question=input.utterance, serialized_schema=serialized_schema, prefix=prefix)
 
-    def _parse_and_tokenize(
-        self, inputs: Union[str, List[str]], db_id: str, truncation: TruncationStrategy
-    ) -> BatchEncoding:
-        if isinstance(inputs, list):
-            assert (
-                self.tokenizer.pad_token_id is not None
-            ), "Please make sure that the tokenizer has a pad_token_id when using a batch input"
-            inputs = [self._pre_process(input=input, db_id=db_id) + input for input in inputs]
-            padding = True
-        elif isinstance(inputs, str):
-            inputs = self._pre_process(input=inputs, db_id=db_id)
-            padding = False
-        else:
-            raise ValueError(
-                f" `inputs`: {inputs} have the wrong format. The should be either of type `str` or type `list`"
-            )
-        inputs = self.tokenizer(
-            inputs,
-            return_tensors=self.framework,
-            padding=padding,
-            truncation=truncation,
-        )
-        # This is produced by tokenizers but is an invalid generate kwargs
-        if "token_type_ids" in inputs:
-            del inputs["token_type_ids"]
-        return inputs
+    def postprocess(self, model_outputs, return_type=ReturnType.TEXT, clean_up_tokenization_spaces=False):
+        record = {}
+        if return_type == ReturnType.TENSORS:
+            record = {f"{self.return_name}_token_ids": model_outputs}
+        elif return_type == ReturnType.TEXT:
+            record = {
+                f"{self.return_name}_text": self.tokenizer.decode(
+                    model_outputs["output_ids"][0],
+                    skip_special_tokens=True,
+                    clean_up_tokenization_spaces=clean_up_tokenization_spaces,
+                )
+                .split("|", 1)[-1]
+                .strip()
+            }
+        return record
 
 
 class ConversationalText2SQLGenerationPipeline(Text2TextGenerationPipeline):
