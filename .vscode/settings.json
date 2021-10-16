@@ -1,0 +1,16 @@
+{
+    "python.languageServer": "Pylance",
+    "python.formatting.provider": "black",
+    "python.defaultInterpreterPath": "/opt/conda/bin/python",
+    "python.envFile": "${workspaceFolder}/.env",
+    "python.terminal.activateEnvironment": false,
+    "python.terminal.activateEnvInCurrentTerminal": false,
+    "[haskell]": {
+        "editor.defaultFormatter": "haskell.haskell",
+    },
+    "haskell.formattingProvider": "ormolu",
+    "terminal.integrated.env.linux": {
+        "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/gen-py3",
+        "LD_LIBRARY_PATH": "${workspaceFolder}/third_party/tokenizers/target/release:${workspaceFolder}/gen-py3/picard:${env:LD_LIBRARY_PATH}"
+    }
+}
