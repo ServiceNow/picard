@@ -20,7 +20,7 @@ from transformers.models.auto import AutoConfig, AutoTokenizer, AutoModelForSeq2
 from fastapi import FastAPI, HTTPException
 from uvicorn import run
 from sqlite3 import connect, OperationalError
-from seq2seq.utils.pipeline import Text2SQLGenerationPipeline, get_schema
+from seq2seq.utils.pipeline import Text2SQLGenerationPipeline, Text2SQLInput, get_schema
 from seq2seq.utils.picard_model_wrapper import PicardArguments, PicardLauncher, with_picard
 from seq2seq.utils.dataset import DataTrainingArguments
 
@@ -123,7 +123,7 @@ def main():
         @app.get("/ask/{db_id}/{question}")
         def ask(db_id: str, question: str):
             try:
-                outputs = pipe(inputs=question, db_id=db_id)
+                outputs = pipe(inputs=Text2SQLInput(utterance=question, db_id=db_id))
                 output = outputs[0]
             except OperationalError as e:
                 raise HTTPException(status_code=404, detail=e.args[0])
