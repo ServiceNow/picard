@@ -37,7 +37,3 @@ class ModelArguments:
             "with private models)."
         },
     )
-    gradient_checkpointing: bool = field(
-        default=False,
-        metadata={"help": "Will enable gradient / activation checkpointing"},
-    )
