@@ -121,8 +121,7 @@ testTree = toTest testData
       H.testCase ("Parse with guards " <> show query) $
         let p = withEnv (ParserEnv (ParserEnvWithGuards (withGuards SUD)) sqlSchema) (spiderSQL SUD mkParserStateUD)
          in -- case yoctoParseOnly p query of
-            --   (Done _) : _ -> pure ()
-            --   (Partial _) : _ -> H.assertFailure "partial"
+            --   _ : _ -> pure ()
             --   [] -> H.assertFailure "empty"
             -- case attoParseOnly p query of
             --   Left e -> H.assertFailure e
