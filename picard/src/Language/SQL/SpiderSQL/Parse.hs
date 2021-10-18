@@ -24,7 +24,7 @@ import qualified Data.Text as Text
 import Data.Word (Word8)
 import GHC.Generics (Generic)
 import Language.SQL.SpiderSQL.Prelude (columnNameP, columnTypeAndNameP, doubleP, eitherP, intP, isAnd, isAs, isAsc, isAvg, isBetween, isClosedParenthesis, isComma, isCount, isDesc, isDistinct, isDivide, isDot, isEq, isExcept, isFrom, isGe, isGroupBy, isGt, isHaving, isIn, isIntersect, isJoin, isLe, isLike, isLimit, isLt, isMax, isMin, isMinus, isNe, isNot, isOn, isOpenParenthesis, isOr, isOrderBy, isPlus, isSelect, isStar, isSum, isTimes, isUnion, isWhere, manyAtMost, quotedString, tableNameP, toColumnType)
-import Language.SQL.SpiderSQL.Syntax (Agg (..), AggType (..), Alias (..), ColUnit (..), ColumnId (..), Cond (..), From (..), OrderBy (..), OrderByOrder (..), SX (..), Select (..), SpiderSQL (..), SpiderTyp (..), TableId (..), TableUnit (..), Val (..), ValTC, ValUnit (..), X (..), XValUnit, colUnitTyp, selectTyp, spiderSQLTyp, valUnitTyp, void, pattern AggUD, pattern ColUnitUD, pattern ColumnIdUD, pattern ColumnUD, pattern DistinctColUnitUD, pattern SelectDistinctUD, pattern SelectUD, pattern SpiderSQLUD)
+import Language.SQL.SpiderSQL.Syntax (Agg (..), AggType (..), Alias (..), ColUnit (..), ColumnId (..), Cond (..), From (..), OrderBy (..), OrderByOrder (..), SX (..), Select (..), SpiderSQL (..), SpiderTyp (..), TableId (..), TableUnit (..), Val (..), ValTC, ValUnit (..), X (..), XValUnit, colUnitTyp, selectTyp, spiderSQLTyp, valUnitTyp, pattern AggUD, pattern ColUnitUD, pattern ColumnIdUD, pattern ColumnUD, pattern DistinctColUnitUD, pattern SelectDistinctUD, pattern SelectUD, pattern SpiderSQLUD)
 import qualified Picard.Types (ColumnId, SQLSchema (..))
 import Text.Parser.Char (CharParsing (..), alphaNum, digit, spaces)
 import Text.Parser.Combinators (Parsing (..), between, choice, sepBy, sepBy1)
@@ -260,7 +260,7 @@ valUnit sx =
             | vt == TTime && vt' == TTime = pure TTime
             | otherwise = unexpected $ "the types " <> show vt <> " and " <> show vt' <> " are incompatible"
           checkedBinary :: SX x -> (XValUnit x -> Val x -> Val x -> ValUnit x) -> Val x -> Val x -> m (ValUnit x)
-          checkedBinary SUD f v v' = pure $ f void v v'
+          checkedBinary SUD f v v' = pure $ f () v v'
           checkedBinary STC f v v' = do
             vt <- vTyp v
             vt' <- vTyp v'

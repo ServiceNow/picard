@@ -12,13 +12,6 @@ import Data.Hashable (Hashable)
 import Data.Kind (Type)
 import GHC.Generics (Generic)
 
-data Void
-  deriving stock (Eq, Show, Generic)
-  deriving anyclass (Hashable)
-
-void :: Void
-void = error "impossible"
-
 data SpiderTyp
   = TBoolean
   | TNumber
@@ -37,7 +30,7 @@ data SX :: X -> Type where
 
 type XSpiderSQL :: X -> Type
 type family XSpiderSQL x where
-  XSpiderSQL 'UD = Void
+  XSpiderSQL 'UD = ()
   XSpiderSQL 'TC = [SpiderTyp]
 
 type SpiderSQL :: X -> Type
@@ -74,7 +67,7 @@ pattern SpiderSQLUD sqlSelect sqlFrom sqlWhere sqlGroupBy sqlOrderBy sqlHaving s
   SpiderSQL _ sqlSelect sqlFrom sqlWhere sqlGroupBy sqlOrderBy sqlHaving sqlLimit sqlIntersect sqlExcept sqlUnion
   where
     SpiderSQLUD sqlSelect sqlFrom sqlWhere sqlGroupBy sqlOrderBy sqlHaving sqlLimit sqlIntersect sqlExcept sqlUnion =
-      SpiderSQL void sqlSelect sqlFrom sqlWhere sqlGroupBy sqlOrderBy sqlHaving sqlLimit sqlIntersect sqlExcept sqlUnion
+      SpiderSQL () sqlSelect sqlFrom sqlWhere sqlGroupBy sqlOrderBy sqlHaving sqlLimit sqlIntersect sqlExcept sqlUnion
 
 deriving stock instance Eq SpiderSQLUD
 
@@ -94,7 +87,7 @@ deriving stock instance Show SpiderSQLTC
 deriving anyclass instance Hashable SpiderSQLTC
 
 type family XSelect x where
-  XSelect 'UD = Void
+  XSelect 'UD = ()
   XSelect 'TC = [SpiderTyp]
 
 data Select x
@@ -106,13 +99,13 @@ pattern SelectUD :: [AggUD] -> SelectUD
 pattern SelectUD aggs <-
   Select _ aggs
   where
-    SelectUD aggs = Select void aggs
+    SelectUD aggs = Select () aggs
 
 pattern SelectDistinctUD :: [AggUD] -> SelectUD
 pattern SelectDistinctUD aggs <-
   SelectDistinct _ aggs
   where
-    SelectDistinctUD aggs = SelectDistinct void aggs
+    SelectDistinctUD aggs = SelectDistinct () aggs
 
 type SelectUD = Select 'UD
 
@@ -189,7 +182,7 @@ deriving stock instance Show CondTC
 deriving anyclass instance Hashable CondTC
 
 type family XValUnit x where
-  XValUnit 'UD = Void
+  XValUnit 'UD = ()
   XValUnit 'TC = SpiderTyp
 
 type ValUnit :: X -> Type
@@ -212,7 +205,7 @@ pattern ColumnUD :: ValUD -> ValUnitUD
 pattern ColumnUD val <-
   Column _ val
   where
-    ColumnUD val = Column void val
+    ColumnUD val = Column () val
 
 type ValUnitUD = ValUnit 'UD
 
@@ -264,7 +257,7 @@ deriving anyclass instance Hashable ValTC
 
 type XColUnit :: X -> Type
 type family XColUnit x where
-  XColUnit 'UD = Void
+  XColUnit 'UD = ()
   XColUnit 'TC = SpiderTyp
 
 data ColUnit x
@@ -286,13 +279,13 @@ pattern ColUnitUD :: Maybe AggType -> Maybe (Either TableId Alias) -> ColumnIdUD
 pattern ColUnitUD at tidOrAlias cid <-
   ColUnit _ at tidOrAlias cid
   where
-    ColUnitUD at tidOrAlias cid = ColUnit void at tidOrAlias cid
+    ColUnitUD at tidOrAlias cid = ColUnit () at tidOrAlias cid
 
 pattern DistinctColUnitUD :: Maybe AggType -> Maybe (Either TableId Alias) -> ColumnIdUD -> ColUnitUD
 pattern DistinctColUnitUD at tidOrAlias cid <-
   ColUnit _ at tidOrAlias cid
   where
-    DistinctColUnitUD at tidOrAlias cid = ColUnit void at tidOrAlias cid
+    DistinctColUnitUD at tidOrAlias cid = ColUnit () at tidOrAlias cid
 
 type ColUnitUD = ColUnit 'UD
 
@@ -340,7 +333,7 @@ data OrderByOrder = Asc | Desc
 
 type XAgg :: X -> Type
 type family XAgg x where
-  XAgg 'UD = Void
+  XAgg 'UD = ()
   XAgg 'TC = SpiderTyp
 
 type Agg :: X -> Type
@@ -351,7 +344,7 @@ pattern AggUD :: Maybe AggType -> ValUnitUD -> AggUD
 pattern AggUD aggType vu <-
   Agg _ aggType vu
   where
-    AggUD aggType vu = Agg void aggType vu
+    AggUD aggType vu = Agg () aggType vu
 
 type AggUD = Agg 'UD
 
@@ -397,7 +390,7 @@ data AggType = Max | Min | Count | Sum | Avg
 
 type XColumnID :: X -> Type
 type family XColumnID x where
-  XColumnID 'UD = Void
+  XColumnID 'UD = ()
   XColumnID 'TC = SpiderTyp
 
 data ColumnId x
@@ -409,7 +402,7 @@ pattern ColumnIdUD :: String -> ColumnIdUD
 pattern ColumnIdUD colName <-
   ColumnId _ colName
   where
-    ColumnIdUD colName = ColumnId void colName
+    ColumnIdUD colName = ColumnId () colName
 
 type ColumnIdUD = ColumnId 'UD
 
