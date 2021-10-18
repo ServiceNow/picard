@@ -25,6 +25,10 @@ instance (MonadPlus b, MonadFail b) => TokenParsing (FreeT ((->) Char) b)
 
 data Result b i a = Partial (i -> b (Result b i a)) | Done a [i]
 
+instance (Show a, Show i) => Show (Result b i a) where
+  show (Partial _) = "Partial"
+  show (Done a is) = "Done (" <> show a <> ") (" <> show is <> ")"
+
 runParser :: forall b i a. (Monad b, Foldable b) => Yocto.Parser b i a -> b (Result b i a)
 runParser p = do
   val <- runFreeT p

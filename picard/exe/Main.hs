@@ -5,8 +5,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE NoStarIsType #-}
 
 module Main (main, testServer) where
@@ -25,8 +28,9 @@ import Control.Monad.STM (STM, atomically, throwSTM)
 import Control.Monad.State.Strict (MonadState (get), evalStateT, modify)
 import Control.Monad.Trans (MonadTrans (lift))
 import Control.Monad.Trans.Free (FreeT)
+import qualified Control.Monad.Yoctoparsec as Yocto
 import qualified Control.Monad.Yoctoparsec.Class as Yocto
-import qualified Data.Attoparsec.Text as Atto (IResult (..), Parser, Result, char, endOfInput, feed, many', parse, skipSpace, string)
+import qualified Data.Attoparsec.Text as Atto (IResult (..), Parser, Result, feed, parse)
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as LBS
 import Data.Foldable (Foldable (foldl'))
@@ -35,10 +39,9 @@ import Data.Functor (($>), (<&>))
 import qualified Data.HashMap.Strict as HashMap
 import Data.Kind (Constraint, Type)
 import Data.List (sortBy)
-import Data.Maybe (catMaybes, fromMaybe)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
-import qualified Data.Text as Text
-import qualified Data.Text as Text (Text, empty, length, pack, stripPrefix, unpack)
+import qualified Data.Text as Text (length, null, pack, stripPrefix, unpack)
 import qualified Data.Text.Encoding as Text
 import Language.SQL.SpiderSQL.Lexer (lexSpiderSQL)
 import Language.SQL.SpiderSQL.Parse (ParserEnv (..), ParserEnvWithGuards (..), mkParserStateTC, mkParserStateUD, spiderSQL, withGuards)
@@ -63,37 +66,86 @@ import qualified Util.EventBase as Thrift
 trace :: forall a. String -> a -> a
 trace _ = id
 
-type HasRunParser :: Type -> Constraint
-class HasRunParser p where
-  type Result p :: Type
-  runParser :: p -> Result p
-  feed :: Result p -> Text -> Result p
-  -- finalize :: 
+type RunParsing :: (Type -> Type) -> Type -> Constraint
+class CharParsing m => RunParsing m a where
+  type Result m a = r | r -> m a
+  runParser :: m a -> Result m a
+  feed :: Result m a -> Text -> Result m a
+  finalize :: Result m a -> Result m a
+  toFeedResult :: Result m a -> Picard.FeedResult
 
-instance HasRunParser (Atto.Parser a) where
-  type Result (Atto.Parser a) = Atto.Result a
+instance RunParsing Atto.Parser a where
+  type Result Atto.Parser a = Atto.Result a
   runParser p = Atto.parse p mempty
   feed = Atto.feed
+  finalize r = case Atto.feed r mempty of
+    Atto.Done notConsumed _ | not (Text.null notConsumed) -> Atto.Fail mempty mempty "Not consumed: notConsumed"
+    r' -> r'
+  toFeedResult (Atto.Done notConsumed _) = Picard.FeedResult_feedCompleteSuccess (Picard.FeedCompleteSuccess notConsumed)
+  toFeedResult (Atto.Partial _) = Picard.FeedResult_feedPartialSuccess Picard.FeedPartialSuccess
+  toFeedResult (Atto.Fail i contexts description) =
+    Picard.FeedResult_feedParseFailure
+      Picard.FeedParseFailure
+        { feedParseFailure_input = i,
+          feedParseFailure_contexts = Text.pack <$> contexts,
+          feedParseFailure_description = Text.pack description
+        }
 
-instance (Monad b, Foldable b) => HasRunParser (FreeT ((->) Char) b a) where
-  type Result (FreeT ((->) Char) b a) = b (Yocto.Result b Char a)
+instance RunParsing (FreeT ((->) Char) []) a where
+  type Result (FreeT ((->) Char) []) a = [Yocto.Result [] Char a]
   runParser p = Yocto.runParser p
   feed r s = do
     r' <- r
     Yocto.feed r' . Text.unpack $ s
+  finalize =
+    foldMap
+      ( \case
+          (Yocto.Done a []) -> pure $ Yocto.Done a []
+          (Yocto.Done _ _) -> mempty
+          (Yocto.Partial _) -> mempty
+      )
+  toFeedResult [] =
+    Picard.FeedResult_feedParseFailure
+      Picard.FeedParseFailure
+        { feedParseFailure_input = mempty,
+          feedParseFailure_contexts = mempty,
+          feedParseFailure_description = "Nothing remains"
+        }
+  toFeedResult (Yocto.Done _ notConsumed : _) = Picard.FeedResult_feedCompleteSuccess . Picard.FeedCompleteSuccess $ Text.pack notConsumed
+  toFeedResult (Yocto.Partial _ : _) = Picard.FeedResult_feedPartialSuccess Picard.FeedPartialSuccess
 
-data PartialParse a
-  = PartialParse !Text.Text !(Atto.Result a)
-  deriving stock (Show)
+data PartialParse m a = PartialParse !Text !(Result m a)
+
+deriving stock instance (Show (Result m a)) => Show (PartialParse m a)
 
 data PicardState = PicardState
   { counter :: TVar Int,
     sqlSchemas :: TVar (HashMap.HashMap Picard.DBId Picard.SQLSchema),
     tokenizer :: TVar (Maybe Tokenizers.Tokenizer),
-    partialSpiderSQLParsesWithGuardsAndTypeChecking :: TVar (HashMap.HashMap Picard.InputIds (PartialParse SpiderSQLTC)),
-    partialSpiderSQLParsesWithGuards :: TVar (HashMap.HashMap Picard.InputIds (PartialParse SpiderSQLUD)),
-    partialSpiderSQLParsesWithoutGuards :: TVar (HashMap.HashMap Picard.InputIds (PartialParse SpiderSQLUD)),
-    partialSpiderSQLLexes :: TVar (HashMap.HashMap Picard.InputIds (PartialParse [String]))
+    partialSpiderSQLParsesWithGuardsAndTypeChecking ::
+      TVar
+        ( HashMap.HashMap
+            Picard.InputIds
+            (PartialParse (FreeT ((->) Char) []) SpiderSQLTC)
+        ),
+    partialSpiderSQLParsesWithGuards ::
+      TVar
+        ( HashMap.HashMap
+            Picard.InputIds
+            (PartialParse Atto.Parser SpiderSQLUD)
+        ),
+    partialSpiderSQLParsesWithoutGuards ::
+      TVar
+        ( HashMap.HashMap
+            Picard.InputIds
+            (PartialParse Atto.Parser SpiderSQLUD)
+        ),
+    partialSpiderSQLLexes ::
+      TVar
+        ( HashMap.HashMap
+            Picard.InputIds
+            (PartialParse Atto.Parser [String])
+        )
   }
 
 initPicardState :: IO PicardState
@@ -120,7 +172,7 @@ mkSchemaParser sqlSchemas =
     (sortBy (compare `on` (negate . Text.length . fst)) (HashMap.toList sqlSchemas))
 
 mkParser ::
-  forall a m.
+  forall m a.
   (Monad m, CharParsing m) =>
   m Picard.SQLSchema ->
   (Picard.SQLSchema -> m a) ->
@@ -141,21 +193,23 @@ mkParser schemaParser mkMainParser = do
     <* eof
 
 getPartialParse ::
-  forall a.
+  forall m a.
+  (RunParsing m a, Monad m) =>
   HashMap.HashMap Picard.DBId Picard.SQLSchema ->
-  (Picard.SQLSchema -> Atto.Parser a) ->
-  Text.Text ->
-  PartialParse a
+  (Picard.SQLSchema -> m a) ->
+  Text ->
+  PartialParse m a
 getPartialParse sqlSchemas mkMainParser =
   let schemaParser = mkSchemaParser sqlSchemas
       m = mkParser schemaParser mkMainParser
-   in ap PartialParse $ Atto.parse m
+   in ap PartialParse $ feed (runParser m)
 
 initializeParserCacheSTM ::
-  forall a.
-  (Picard.SQLSchema -> Atto.Parser a) ->
+  forall m a.
+  (RunParsing m a, Monad m) =>
+  (Picard.SQLSchema -> m a) ->
   TVar (HashMap.HashMap Picard.DBId Picard.SQLSchema) ->
-  TVar (HashMap.HashMap Picard.InputIds (PartialParse a)) ->
+  TVar (HashMap.HashMap Picard.InputIds (PartialParse m a)) ->
   STM ()
 initializeParserCacheSTM mainParser sqlSchemas partialParses = do
   nukeParserCache partialParses
@@ -167,8 +221,8 @@ initializeParserCacheSTM mainParser sqlSchemas partialParses = do
   modifyTVar partialParses (HashMap.insert mempty partialParse)
 
 nukeParserCache ::
-  forall a.
-  TVar (HashMap.HashMap Picard.InputIds (PartialParse a)) ->
+  forall m a.
+  TVar (HashMap.HashMap Picard.InputIds (PartialParse m a)) ->
   STM ()
 nukeParserCache partialParses = writeTVar partialParses HashMap.empty
 
@@ -176,13 +230,14 @@ data LookupResult a = Cached !a | Fresh !a
   deriving stock (Show)
 
 lookupResultIO ::
-  forall a.
+  forall m a.
+  (RunParsing m a, Monad m) =>
   HashMap.HashMap Picard.DBId Picard.SQLSchema ->
-  (Picard.SQLSchema -> Atto.Parser a) ->
+  (Picard.SQLSchema -> m a) ->
   (Picard.InputIds -> IO String) ->
-  HashMap.HashMap Picard.InputIds (PartialParse a) ->
+  HashMap.HashMap Picard.InputIds (PartialParse m a) ->
   Picard.InputIds ->
-  IO (LookupResult (PartialParse a))
+  IO (LookupResult (PartialParse m a))
 lookupResultIO sqlSchemas mkMainParser decode partialParses inputIds =
   case HashMap.lookup inputIds partialParses of
     Just partialParse ->
@@ -194,40 +249,38 @@ lookupResultIO sqlSchemas mkMainParser decode partialParses inputIds =
         pure $ Fresh partialParse
 
 lookupResultWithTimeoutIO ::
-  forall a m.
-  (MonadState DebugInfo m, MonadError Picard.FeedTimeoutFailure m, MonadIO m) =>
+  forall m a n.
+  (RunParsing m a, Monad m, MonadState DebugInfo n, MonadError Picard.FeedTimeoutFailure n, MonadIO n) =>
   Int ->
   TVar (HashMap.HashMap Picard.DBId Picard.SQLSchema) ->
-  (Picard.SQLSchema -> Atto.Parser a) ->
+  (Picard.SQLSchema -> m a) ->
   (Picard.InputIds -> IO String) ->
-  TVar (HashMap.HashMap Picard.InputIds (PartialParse a)) ->
+  TVar (HashMap.HashMap Picard.InputIds (PartialParse m a)) ->
   Picard.InputIds ->
-  m (PartialParse a)
-lookupResultWithTimeoutIO microSeconds sqlSchemas mkMainParser decode partialParses inputIds = do
-  r <-
-    resultOrTimeout
-      microSeconds
-      $ do
+  n (PartialParse m a)
+lookupResultWithTimeoutIO microSeconds sqlSchemas mkMainParser decode partialParses inputIds =
+  resultOrTimeout
+    microSeconds
+    ( do
         schemas <- readTVarIO sqlSchemas
         parses <- readTVarIO partialParses
         !lr <- lookupResultIO schemas mkMainParser decode parses inputIds
         pure lr
-  let f (Cached partialParse) = pure partialParse
-      f (Fresh partialParse) =
-        trace ("Server: Cached inputIds " <> show inputIds) . liftIO . atomically $ do
-          modifyTVar partialParses $ HashMap.insert inputIds partialParse
-          pure partialParse
-      g partialParse@(PartialParse decodedInputIds _) = do
-        modify (\debugInfo -> debugInfo {debugDecodedInputIds = Just decodedInputIds})
+    )
+    >>= cache
+  where
+    cache (Cached partialParse) = pure partialParse
+    cache (Fresh partialParse) =
+      trace ("Server: Cached inputIds " <> show inputIds) . liftIO . atomically $ do
+        modifyTVar partialParses $ HashMap.insert inputIds partialParse
         pure partialParse
-  pure r >>= f >>= g
 
 decodedTokenFromDifferenceIO ::
   (Picard.InputIds -> IO String) ->
   Picard.InputIds ->
   Picard.Token ->
-  Text.Text ->
-  IO (Text.Text, Maybe Text.Text)
+  Text ->
+  IO (Text, Maybe Text)
 decodedTokenFromDifferenceIO decode inputIds token decodedInputIds = do
   decoded <- Text.pack <$> decode (inputIds ++ [token])
   pure (decoded, Text.stripPrefix decodedInputIds decoded)
@@ -238,8 +291,8 @@ decodedTokenFromDifferenceM ::
   (Picard.InputIds -> IO String) ->
   Picard.InputIds ->
   Picard.Token ->
-  Text.Text ->
-  m (Text.Text, Text.Text)
+  Text ->
+  m (Text, Text)
 decodedTokenFromDifferenceM decode inputIds token decodedInputIds = do
   (decoded, maybeDecodedToken) <- liftIO $ decodedTokenFromDifferenceIO decode inputIds token decodedInputIds
   _ <- modify (\debugInfo -> debugInfo {debugDecoded = Just decoded})
@@ -261,15 +314,20 @@ decodedTokenFromDifferenceM decode inputIds token decodedInputIds = do
 data DebugInfo = DebugInfo
   { debugInputIds :: Maybe Picard.InputIds,
     debugToken :: Maybe Picard.Token,
-    debugDecodedInputIds :: Maybe Text.Text,
-    debugDecodedToken :: Maybe Text.Text,
-    debugDecoded :: Maybe Text.Text
+    debugDecodedInputIds :: Maybe Text,
+    debugDecodedToken :: Maybe Text,
+    debugDecoded :: Maybe Text
   }
 
 mkDebugInfo :: DebugInfo
 mkDebugInfo = DebugInfo Nothing Nothing Nothing Nothing Nothing
 
-resultOrTimeout :: forall r m. (MonadIO m, MonadState DebugInfo m, MonadError Picard.FeedTimeoutFailure m) => Int -> IO r -> m r
+resultOrTimeout ::
+  forall r m.
+  (MonadIO m, MonadState DebugInfo m, MonadError Picard.FeedTimeoutFailure m) =>
+  Int ->
+  IO r ->
+  m r
 resultOrTimeout microSeconds ior = do
   mr <- liftIO $ timeout microSeconds ior
   case mr of
@@ -283,31 +341,26 @@ resultOrTimeout microSeconds ior = do
         $ "Timeout error."
 
 feedParserWithTimeoutIO ::
-  forall a m.
-  (MonadState DebugInfo m, MonadIO m, MonadError Picard.FeedTimeoutFailure m) =>
+  forall m a n.
+  (RunParsing m a, MonadState DebugInfo n, MonadIO n, MonadError Picard.FeedTimeoutFailure n) =>
   Int ->
-  Atto.Result a ->
-  Text.Text ->
-  m (Atto.Result a)
+  Result m a ->
+  Text ->
+  n (Result m a)
 feedParserWithTimeoutIO microSeconds partialParseResult decodedToken = do
   resultOrTimeout
     microSeconds
-    $ do
-      let !r =
-            Atto.feed
-              partialParseResult
-              ( case decodedToken of
-                  "</s>" -> Text.empty
-                  s -> s
-              )
-      pure r
+    $ let !r = case decodedToken of
+            "</s>" -> finalize partialParseResult
+            s -> feed partialParseResult s
+       in pure r
 
 -- | fix me: need one counter for each hashmap
 nukeParserCacheEverySTM ::
-  forall a.
+  forall m a.
   Int ->
   TVar Int ->
-  TVar (HashMap.HashMap Picard.InputIds (PartialParse a)) ->
+  TVar (HashMap.HashMap Picard.InputIds (PartialParse m a)) ->
   STM ()
 nukeParserCacheEverySTM n counter partialParses = do
   _ <- modifyTVar counter (+ 1)
@@ -316,54 +369,34 @@ nukeParserCacheEverySTM n counter partialParses = do
     0 -> nukeParserCache partialParses
     _ -> pure ()
 
-toResult ::
-  forall a m.
-  (MonadState DebugInfo m, Show a) =>
-  Atto.Result a ->
-  m Picard.FeedResult
-toResult (Atto.Done notConsumed _) = pure . Picard.FeedResult_feedCompleteSuccess . Picard.FeedCompleteSuccess $ notConsumed
-toResult result@(Atto.Partial _) = do
+toFeedResult' ::
+  forall m a n.
+  (RunParsing m a, MonadState DebugInfo n, Show (Result m a)) =>
+  Result m a ->
+  n Picard.FeedResult
+toFeedResult' r = do
+  let fr = toFeedResult r
   DebugInfo {..} <- get
-  trace
-    ( "Server: "
-        <> "Partial. Input ids were: "
-        <> show debugInputIds
-        <> ". Token was: "
-        <> show debugToken
-        <> ". Decoded input ids were: "
-        <> show debugDecodedInputIds
-        <> ". Decoded token was: "
-        <> show debugDecodedToken
-        <> ". Result: "
-        <> show result
-        <> "."
-    )
-    . pure
-    . Picard.FeedResult_feedPartialSuccess
-    $ Picard.FeedPartialSuccess
-toResult result@(Atto.Fail i contexts description) = do
-  DebugInfo {..} <- get
-  trace
-    ( "Server: "
-        <> "Failure. Input ids were: "
-        <> show debugInputIds
-        <> ". Token was: "
-        <> show debugToken
-        <> ". Decoded input ids were: "
-        <> show debugDecodedInputIds
-        <> ". Decoded token was: "
-        <> show debugDecodedToken
-        <> ". Result: "
-        <> show result
-        <> "."
-    )
-    . pure
-    . Picard.FeedResult_feedParseFailure
-    $ Picard.FeedParseFailure
-      { feedParseFailure_input = i,
-        feedParseFailure_contexts = Text.pack <$> contexts,
-        feedParseFailure_description = Text.pack description
-      }
+  pure . flip trace fr $
+    "Server: "
+      <> ( case fr of
+             Picard.FeedResult_feedParseFailure Picard.FeedParseFailure {} -> "Failure"
+             Picard.FeedResult_feedTimeoutFailure (Picard.FeedTimeoutFailure msg) -> "Timeout failure: " <> Text.unpack msg
+             Picard.FeedResult_feedPartialSuccess Picard.FeedPartialSuccess -> "Partial"
+             Picard.FeedResult_feedCompleteSuccess (Picard.FeedCompleteSuccess _) -> "Success"
+             Picard.FeedResult_EMPTY -> "Unknown"
+         )
+      <> ". Input ids were: "
+      <> show debugInputIds
+      <> ". Token was: "
+      <> show debugToken
+      <> ". Decoded input ids were: "
+      <> show debugDecodedInputIds
+      <> ". Decoded token was: "
+      <> show debugDecodedToken
+      <> ". Result: "
+      <> show r
+      <> "."
 
 -- | fix me: the tokenizer referenced here may be freed and/or replaced elsewhere...
 getDecode :: TVar (Maybe Tokenizers.Tokenizer) -> IO (Picard.InputIds -> IO String)
@@ -382,17 +415,18 @@ getDecode maybeTokenizer =
     pure (\inputIds -> MSem.with tokSem (Tokenizers.decode tok $ fromIntegral <$> inputIds))
 
 feedIO ::
-  forall a.
-  Show a =>
+  forall m a.
+  (RunParsing m a, Monad m, Show (Result m a)) =>
+  Int ->
   TVar Int ->
   TVar (HashMap.HashMap Picard.DBId Picard.SQLSchema) ->
-  (Picard.SQLSchema -> Atto.Parser a) ->
+  (Picard.SQLSchema -> m a) ->
   TVar (Maybe Tokenizers.Tokenizer) ->
-  TVar (HashMap.HashMap Picard.InputIds (PartialParse a)) ->
+  TVar (HashMap.HashMap Picard.InputIds (PartialParse m a)) ->
   Picard.InputIds ->
   Picard.Token ->
   IO Picard.FeedResult
-feedIO counter sqlSchemas mkMainParser maybeTokenizer partialParses inputIds token =
+feedIO microSeconds counter sqlSchemas mkMainParser maybeTokenizer partialParses inputIds token =
   evalStateT
     ( runExceptT
         ( do
@@ -402,7 +436,7 @@ feedIO counter sqlSchemas mkMainParser maybeTokenizer partialParses inputIds tok
             liftIO . atomically . modifyTVar partialParses $ HashMap.insert (inputIds ++ [token]) partialParse
             pure partialParse
         )
-        >>= toResultIO
+        >>= toFeedResultIO
     )
     initialDebugInfo
   where
@@ -412,147 +446,35 @@ feedIO counter sqlSchemas mkMainParser maybeTokenizer partialParses inputIds tok
           debugToken = Just token
         }
     getPartialParseIO tokenizer = do
-      let microSeconds = 100000
       PartialParse decodedInputIds partialParseResult <-
         lookupResultWithTimeoutIO microSeconds sqlSchemas mkMainParser tokenizer partialParses inputIds
-      (decoded, decodedToken) <-
-        decodedTokenFromDifferenceM tokenizer inputIds token decodedInputIds
-      partialParseResult' <-
-        feedParserWithTimeoutIO microSeconds partialParseResult decodedToken
+      (decoded, decodedToken) <- decodedTokenFromDifferenceM tokenizer inputIds token decodedInputIds
+      modify (\debugInfo -> debugInfo {debugDecodedInputIds = Just decodedInputIds})
+      partialParseResult' <- feedParserWithTimeoutIO microSeconds partialParseResult decodedToken
       pure $ PartialParse decoded partialParseResult'
-    toResultIO (Left timeoutFailure) = pure $ Picard.FeedResult_feedTimeoutFailure timeoutFailure
-    toResultIO (Right (PartialParse _ r)) = toResult r
+    toFeedResultIO (Left timeoutFailure) = pure $ Picard.FeedResult_feedTimeoutFailure timeoutFailure
+    toFeedResultIO (Right (PartialParse _ r)) = toFeedResult' r
 
 batchFeedIO ::
-  forall a.
-  Show a =>
+  forall m a.
+  (RunParsing m a, Monad m, Show (Result m a)) =>
+  Int ->
   TVar Int ->
   TVar (HashMap.HashMap Picard.DBId Picard.SQLSchema) ->
-  (Picard.SQLSchema -> Atto.Parser a) ->
+  (Picard.SQLSchema -> m a) ->
   TVar (Maybe Tokenizers.Tokenizer) ->
-  TVar (HashMap.HashMap Picard.InputIds (PartialParse a)) ->
+  TVar (HashMap.HashMap Picard.InputIds (PartialParse m a)) ->
   [Picard.InputIds] ->
   [[Picard.Token]] ->
   IO [Picard.BatchFeedResult]
-batchFeedIO counter sqlSchemas mkMainParser maybeTokenizer partialParses inputIds topTokens =
+batchFeedIO microSeconds counter sqlSchemas mkMainParser maybeTokenizer partialParses inputIds topTokens =
   do
-    decode <- getDecode maybeTokenizer
-    results <-
-      mapConcurrently
-        (action decode)
-        . concat
-        . zipWith3
-          (\batchId inputIds' tokens -> (batchId,inputIds',) <$> tokens)
-          [0 :: Picard.BatchId ..]
-          inputIds
-        $ topTokens
-    let newPartialParses = HashMap.fromList $ catMaybes (fst <$> results)
-    atomically . modifyTVar partialParses $ HashMap.union newPartialParses
-    pure $ snd <$> results
-  where
-    action :: (Picard.InputIds -> IO String) -> (Picard.BatchId, Picard.InputIds, Picard.Token) -> IO (Maybe ([Picard.Token], PartialParse a), Picard.BatchFeedResult)
-    action decode (batchId, inputIds', token) =
-      evalStateT
-        ( runExceptT
-            ( do
-                _ <- liftIO . atomically $ nukeParserCacheEverySTM 10000 counter partialParses
-                getPartialParseIO
-            )
-            >>= ( \partialParse ->
-                    (either (const Nothing) (Just . (inputIds' ++ [token],)) partialParse,)
-                      <$> ( Picard.BatchFeedResult batchId token <$> toResultIO partialParse
-                          )
-                )
-        )
-        initialDebugInfo
-      where
-        initialDebugInfo =
-          mkDebugInfo
-            { debugInputIds = Just inputIds',
-              debugToken = Just token
-            }
-        getPartialParseIO ::
-          forall m.
-          (MonadError Picard.FeedTimeoutFailure m, MonadState DebugInfo m, MonadIO m) =>
-          m (PartialParse a)
-        getPartialParseIO = do
-          let microSeconds = 100000
-          PartialParse decodedInputIds partialParseResult <-
-            lookupResultWithTimeoutIO microSeconds sqlSchemas mkMainParser decode partialParses inputIds'
-          (decoded, decodedToken) <-
-            decodedTokenFromDifferenceM decode inputIds' token decodedInputIds
-          partialParseResult' <-
-            feedParserWithTimeoutIO microSeconds partialParseResult decodedToken
-          pure $ PartialParse decoded partialParseResult'
-        toResultIO (Left timeoutFailure) = pure $ Picard.FeedResult_feedTimeoutFailure timeoutFailure
-        toResultIO (Right (PartialParse _ r)) = toResult r
-
-batchFeedIO' ::
-  forall a.
-  Show a =>
-  TVar Int ->
-  TVar (HashMap.HashMap Picard.DBId Picard.SQLSchema) ->
-  (Picard.SQLSchema -> Atto.Parser a) ->
-  TVar (Maybe Tokenizers.Tokenizer) ->
-  TVar (HashMap.HashMap Picard.InputIds (PartialParse a)) ->
-  [Picard.InputIds] ->
-  [[Picard.Token]] ->
-  IO [Picard.BatchFeedResult]
-batchFeedIO' counter sqlSchemas mkMainParser tokenizer partialParses inputIds topTokens =
-  do
-    decode <- getDecode tokenizer
-    schemas <- readTVarIO sqlSchemas
     -- traverse
     -- mapPool (length inputIds)
     mapConcurrently
       ( \(batchId, inputIds', token) ->
-          evalStateT
-            ( runExceptT
-                ( do
-                    _ <- liftIO . atomically $ nukeParserCacheEverySTM 10000 counter partialParses
-                    let microSeconds = 10000000
-                    PartialParse decodedInputIds' partialParseResult <-
-                      resultOrTimeout
-                        microSeconds
-                        ( do
-                            parses <- readTVarIO partialParses
-                            !lr <- lookupResultIO schemas mkMainParser decode parses inputIds'
-                            pure lr
-                        )
-                        >>= ( \case
-                                Cached partialParse -> pure partialParse
-                                Fresh partialParse -> trace ("Server: Cached inputIds " <> show inputIds') . liftIO . atomically $ do
-                                  modifyTVar partialParses $ HashMap.insert inputIds' partialParse
-                                  pure partialParse
-                            )
-                    (decoded, decodedToken) <- decodedTokenFromDifferenceM decode inputIds' token decodedInputIds'
-                    modify (\debugInfo -> debugInfo {debugDecodedInputIds = Just decodedInputIds'})
-                    partialParseResult' <-
-                      resultOrTimeout
-                        microSeconds
-                        $ let !r =
-                                Atto.feed
-                                  partialParseResult
-                                  ( case decodedToken of
-                                      "</s>" -> Text.empty
-                                      s -> s
-                                  )
-                           in pure r
-                    let partialParse = PartialParse decoded partialParseResult'
-                    liftIO . atomically . modifyTVar partialParses $ HashMap.insert (inputIds' ++ [token]) partialParse
-                    pure partialParse
-                )
-                >>= ( \case
-                        Left timeoutFailure -> pure $ Picard.FeedResult_feedTimeoutFailure timeoutFailure
-                        Right (PartialParse _ r) -> toResult r
-                    )
-                <&> Picard.BatchFeedResult batchId token
-            )
-            ( mkDebugInfo
-                { debugInputIds = Just inputIds',
-                  debugToken = Just token
-                }
-            )
+          feedIO microSeconds counter sqlSchemas mkMainParser maybeTokenizer partialParses inputIds' token
+            <&> Picard.BatchFeedResult batchId token
       )
       . concat
       . zipWith3
@@ -569,7 +491,7 @@ mapPool size f xs = do
 picardHandler :: forall a. PicardState -> Picard.PicardCommand a -> IO a
 picardHandler PicardState {..} = go
   where
-    mkSpiderSQLParserWithGuardsAndTypeChecking :: Picard.SQLSchema -> Atto.Parser SpiderSQLTC
+    mkSpiderSQLParserWithGuardsAndTypeChecking :: Picard.SQLSchema -> Yocto.Parser [] Char SpiderSQLTC
     mkSpiderSQLParserWithGuardsAndTypeChecking = runReaderT (spiderSQL STC mkParserStateTC) . ParserEnv (ParserEnvWithGuards (withGuards STC))
     mkSpiderSQLParserWithGuards :: Picard.SQLSchema -> Atto.Parser SpiderSQLUD
     mkSpiderSQLParserWithGuards = runReaderT (spiderSQL SUD mkParserStateUD) . ParserEnv (ParserEnvWithGuards (withGuards SUD))
@@ -605,16 +527,16 @@ picardHandler PicardState {..} = go
           Nothing -> pure ()
     go (Picard.Feed inputIds token Picard.Mode_PARSING_WITH_GUARDS_AND_TYPE_CHECKING) =
       trace ("Feed parsing with guards " <> show inputIds <> " " <> show token) $
-        feedIO counter sqlSchemas mkSpiderSQLParserWithGuardsAndTypeChecking tokenizer partialSpiderSQLParsesWithGuardsAndTypeChecking inputIds token
+        feedIO 100000 counter sqlSchemas mkSpiderSQLParserWithGuardsAndTypeChecking tokenizer partialSpiderSQLParsesWithGuardsAndTypeChecking inputIds token
     go (Picard.Feed inputIds token Picard.Mode_PARSING_WITH_GUARDS) =
       trace ("Feed parsing with guards " <> show inputIds <> " " <> show token) $
-        feedIO counter sqlSchemas mkSpiderSQLParserWithGuards tokenizer partialSpiderSQLParsesWithGuards inputIds token
+        feedIO 100000 counter sqlSchemas mkSpiderSQLParserWithGuards tokenizer partialSpiderSQLParsesWithGuards inputIds token
     go (Picard.Feed inputIds token Picard.Mode_PARSING_WITHOUT_GUARDS) =
       trace ("Feed parsing without guards " <> show inputIds <> " " <> show token) $
-        feedIO counter sqlSchemas mkSpiderSQLParserWithoutGuards tokenizer partialSpiderSQLParsesWithoutGuards inputIds token
+        feedIO 100000 counter sqlSchemas mkSpiderSQLParserWithoutGuards tokenizer partialSpiderSQLParsesWithoutGuards inputIds token
     go (Picard.Feed inputIds token Picard.Mode_LEXING) =
       trace ("Feed lexing " <> show inputIds <> " " <> show token) $
-        feedIO counter sqlSchemas mkSpiderSQLLexer tokenizer partialSpiderSQLLexes inputIds token
+        feedIO 100000 counter sqlSchemas mkSpiderSQLLexer tokenizer partialSpiderSQLLexes inputIds token
     go (Picard.Feed _inputIds _token (Picard.Mode__UNKNOWN n)) =
       throw
         . Picard.FeedException
@@ -623,13 +545,13 @@ picardHandler PicardState {..} = go
         . Text.pack
         $ "Unknown mode " <> show n
     go (Picard.BatchFeed inputIds topTokens Picard.Mode_PARSING_WITH_GUARDS_AND_TYPE_CHECKING) =
-      batchFeedIO' counter sqlSchemas mkSpiderSQLParserWithGuardsAndTypeChecking tokenizer partialSpiderSQLParsesWithGuardsAndTypeChecking inputIds topTokens
+      batchFeedIO 10000000 counter sqlSchemas mkSpiderSQLParserWithGuardsAndTypeChecking tokenizer partialSpiderSQLParsesWithGuardsAndTypeChecking inputIds topTokens
     go (Picard.BatchFeed inputIds topTokens Picard.Mode_PARSING_WITH_GUARDS) =
-      batchFeedIO' counter sqlSchemas mkSpiderSQLParserWithGuards tokenizer partialSpiderSQLParsesWithGuards inputIds topTokens
+      batchFeedIO 10000000 counter sqlSchemas mkSpiderSQLParserWithGuards tokenizer partialSpiderSQLParsesWithGuards inputIds topTokens
     go (Picard.BatchFeed inputIds topTokens Picard.Mode_PARSING_WITHOUT_GUARDS) =
-      batchFeedIO' counter sqlSchemas mkSpiderSQLParserWithoutGuards tokenizer partialSpiderSQLParsesWithoutGuards inputIds topTokens
+      batchFeedIO 10000000 counter sqlSchemas mkSpiderSQLParserWithoutGuards tokenizer partialSpiderSQLParsesWithoutGuards inputIds topTokens
     go (Picard.BatchFeed inputIds topTokens Picard.Mode_LEXING) =
-      batchFeedIO' counter sqlSchemas mkSpiderSQLLexer tokenizer partialSpiderSQLLexes inputIds topTokens
+      batchFeedIO 10000000 counter sqlSchemas mkSpiderSQLLexer tokenizer partialSpiderSQLLexes inputIds topTokens
     go (Picard.BatchFeed _inputIds _token (Picard.Mode__UNKNOWN n)) =
       throw
         . Picard.FeedException
