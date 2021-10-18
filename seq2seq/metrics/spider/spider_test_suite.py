@@ -32,7 +32,7 @@ def compute_test_suite_metric(predictions, references, db_dir: Optional[str] = N
             )
 
     evaluator = test_suite_evaluation.Evaluator(
-        db_dir=db_dir,
+        db_dir=db_dir if db_dir is not None else references[0]["db_path"],
         kmaps=foreign_key_maps,
         etype="exec",
         plug_value=False,

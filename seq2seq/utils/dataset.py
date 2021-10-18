@@ -148,7 +148,7 @@ class DataArguments:
         metadata={"help": "Paths of the metric modules."},
     )
     test_suite_db_dir: Optional[str] = field(
-        default="/app/third_party/test_suite/database",
+        default=None,
         metadata={"help": "Path to the test-suite databases."})
     data_config_file : Optional[str] = field(
         default=None,
