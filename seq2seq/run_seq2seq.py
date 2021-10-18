@@ -123,7 +123,7 @@ def main() -> None:
         num_beam_groups=data_training_args.num_beam_groups,
         diversity_penalty=data_training_args.diversity_penalty,
         gradient_checkpointing=training_args.gradient_checkpointing,
-        use_cache=not model_args.gradient_checkpointing,
+        use_cache=not training_args.gradient_checkpointing,
     )
 
     # Initialize tokenizer
