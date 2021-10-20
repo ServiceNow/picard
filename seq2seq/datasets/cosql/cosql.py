@@ -146,9 +146,10 @@ class CoSQL(datasets.GeneratorBasedBuilder):
     def _generate_examples(self, data_filepath, db_path):
         """This function returns the examples in the raw (text) form."""
         logger.info("generating examples from = %s", data_filepath)
+        idx = 0 # indexing each training instance
         with open(data_filepath, encoding="utf-8") as f:
             cosql = json.load(f)
-            for idx, sample in enumerate(cosql):
+            for sample in cosql:
                 db_id = sample["database_id"]
                 if db_id not in self.schema_cache:
                     self.schema_cache[db_id] = dump_db_json_schema(
@@ -156,7 +157,7 @@ class CoSQL(datasets.GeneratorBasedBuilder):
                     )
                 schema = self.schema_cache[db_id]
 
-                db_stuff = {
+                db_info = {
                     "db_id": db_id,
                     "db_path": db_path,
                     "db_table_names": schema["table_names_original"],
@@ -176,8 +177,9 @@ class CoSQL(datasets.GeneratorBasedBuilder):
                     "utterances": [sample["final"]["utterance"]],
                     "query": sample["final"]["query"],
                     "turn_idx": -1,
-                    **db_stuff,
+                    **db_info,
                 }
+                idx += 1
                 utterances = []
                 for turn_idx, turn in enumerate(sample["interaction"]):
                     utterances.extend((utterance.strip() for utterance in turn["utterance"].split(sep="|")))
@@ -185,5 +187,6 @@ class CoSQL(datasets.GeneratorBasedBuilder):
                         "utterances": list(utterances),
                         "query": turn["query"],
                         "turn_idx": turn_idx,
-                        **db_stuff,
+                        **db_info,
                     }
+                    idx += 1
