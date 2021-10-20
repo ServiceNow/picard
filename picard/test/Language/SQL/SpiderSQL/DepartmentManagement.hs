@@ -5,18 +5,18 @@ module Language.SQL.SpiderSQL.DepartmentManagement where
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text (Text)
 import Language.SQL.SpiderSQL.TestItem (TestItem (..))
-import Picard.Types (SQLSchema (..))
+import Picard.Types (ColumnType (..), SQLSchema (..))
 
 departmentManagementSchema :: SQLSchema
 departmentManagementSchema =
-  let columnNames = HashMap.fromList [("7", "head_ID"), ("13", "temporary_acting"), ("12", "head_ID"), ("1", "Department_ID"), ("4", "Ranking"), ("2", "Name"), ("5", "Budget_in_Billions"), ("8", "name"), ("11", "department_ID"), ("3", "Creation"), ("6", "Num_Employees"), ("9", "born_state"), ("10", "age")]
+  let columnNames = HashMap.fromList [("1", "Department_ID"), ("10", "age"), ("11", "department_ID"), ("12", "head_ID"), ("13", "temporary_acting"), ("2", "Name"), ("3", "Creation"), ("4", "Ranking"), ("5", "Budget_in_Billions"), ("6", "Num_Employees"), ("7", "head_ID"), ("8", "name"), ("9", "born_state")]
+      columnTypes = HashMap.fromList [("1", ColumnType_NUMBER), ("10", ColumnType_NUMBER), ("11", ColumnType_NUMBER), ("12", ColumnType_NUMBER), ("13", ColumnType_TEXT), ("2", ColumnType_TEXT), ("3", ColumnType_TEXT), ("4", ColumnType_NUMBER), ("5", ColumnType_NUMBER), ("6", ColumnType_NUMBER), ("7", ColumnType_NUMBER), ("8", ColumnType_TEXT), ("9", ColumnType_TEXT)]
       tableNames = HashMap.fromList [("0", "department"), ("1", "head"), ("2", "management")]
-      columnToTable = HashMap.fromList [("7", "1"), ("13", "2"), ("12", "2"), ("1", "0"), ("4", "0"), ("2", "0"), ("5", "0"), ("8", "1"), ("11", "2"), ("3", "0"), ("6", "0"), ("9", "1"), ("10", "1")]
+      columnToTable = HashMap.fromList [("1", "0"), ("10", "1"), ("11", "2"), ("12", "2"), ("13", "2"), ("2", "0"), ("3", "0"), ("4", "0"), ("5", "0"), ("6", "0"), ("7", "1"), ("8", "1"), ("9", "1")]
       tableToColumns = HashMap.fromList [("0", ["1", "2", "3", "4", "5", "6"]), ("1", ["7", "8", "9", "10"]), ("2", ["11", "12", "13"])]
-      foreignKeys = HashMap.fromList [("12", "7"), ("11", "1")]
-      foreignKeysTables = HashMap.fromList [("2", ["0", "1"])]
+      foreignKeys = HashMap.fromList [("11", "1"), ("12", "7")]
       primaryKeys = ["1", "7", "11"]
-   in SQLSchema {sQLSchema_columnNames = columnNames, sQLSchema_tableNames = tableNames, sQLSchema_columnToTable = columnToTable, sQLSchema_tableToColumns = tableToColumns, sQLSchema_foreignKeys = foreignKeys, sQLSchema_foreignKeysTables = foreignKeysTables, sQLSchema_primaryKeys = primaryKeys}
+   in SQLSchema {sQLSchema_columnNames = columnNames, sQLSchema_columnTypes = columnTypes, sQLSchema_tableNames = tableNames, sQLSchema_columnToTable = columnToTable, sQLSchema_tableToColumns = tableToColumns, sQLSchema_foreignKeys = foreignKeys, sQLSchema_primaryKeys = primaryKeys}
 
 departmentManagementQueries :: [Text.Text]
 departmentManagementQueries =
@@ -43,7 +43,8 @@ departmentManagementQueriesFails = []
 departmentManagementParserTests :: TestItem
 departmentManagementParserTests =
   Group "departmentManagement" $
-    (ParseQueryExprWithGuards departmentManagementSchema <$> departmentManagementQueries)
+    (ParseQueryExprWithGuardsAndTypeChecking departmentManagementSchema <$> departmentManagementQueries)
+      <> (ParseQueryExprWithGuards departmentManagementSchema <$> departmentManagementQueries)
       <> (ParseQueryExprWithoutGuards departmentManagementSchema <$> departmentManagementQueries)
       <> (ParseQueryExprFails departmentManagementSchema <$> departmentManagementQueriesFails)
 

@@ -9,6 +9,7 @@ import warnings
 import time
 from tenacity import retry, wait_random_exponential, stop_after_delay, before_sleep_log
 import torch
+from torch._C import Value
 from transformers.configuration_utils import PretrainedConfig
 from transformers.generation_utils import BeamSearchScorer, BeamSearchOutput, GreedySearchOutput
 from transformers.generation_logits_process import LogitsProcessor
@@ -32,6 +33,7 @@ try:
         SQLSchema,
         RegisterSQLSchemaException,
         Mode,
+        ColumnType,
     )
     from thrift.py3.client import get_client
     from thrift.py3.common import Protocol
@@ -43,6 +45,7 @@ except:
     Picard = Any
     SQLSchema = Any
     RegisterSQLSchemaFail = Any
+    ColumnType = Any
     picard_available = False
 
 
@@ -61,7 +64,7 @@ class PicardArguments:
     picard_port: int = field(default=9090, metadata={"help": "The port number for Picard."})
     picard_mode: str = field(
         default="parse_with_guards",
-        metadata={"help": "Picard mode. Choose between ``lex``, ``parse_without_guards``, and ``parse_with_guards``."},
+        metadata={"help": "Picard mode. Choose between ``lex``, ``parse_without_guards``, ``parse_with_guards``, and ``parse_with_guards_and_type_checking."},
     )
     picard_schedule: str = field(
         default="incremental",
@@ -461,6 +464,8 @@ class PicardLogitsProcessor(LogitsProcessor):
             mode = Mode.PARSING_WITHOUT_GUARDS
         elif self.mode == "parse" or self.mode == "parse_with_guards":
             mode = Mode.PARSING_WITH_GUARDS
+        elif self.mode == "parse_with_guards_and_type_checking":
+            mode = Mode.PARSING_WITH_GUARDS_AND_TYPE_CHECKING
         else:
             raise ValueError("unexpected picard mode")
 
@@ -557,6 +562,8 @@ class PicardLogitsProcessor(LogitsProcessor):
             mode = Mode.PARSING_WITHOUT_GUARDS
         elif self.mode == "parse" or self.mode == "parse_with_guards":
             mode = Mode.PARSING_WITH_GUARDS
+        elif self.mode == "parse_with_guards_and_type_checking":
+            mode = Mode.PARSING_WITH_GUARDS_AND_TYPE_CHECKING
         else:
             raise ValueError("unexpected picard mode")
 
@@ -621,40 +628,58 @@ class PicardLogitsProcessor(LogitsProcessor):
         return scores
 
 
+def _get_picard_column_type(column_type: str) -> ColumnType:
+    if column_type == "text":
+        return ColumnType.TEXT
+    elif column_type == "number":
+        return ColumnType.NUMBER
+    elif column_type == "time":
+        return ColumnType.TIME
+    elif column_type == "boolean":
+        return ColumnType.BOOLEAN
+    elif column_type == "others":
+        return ColumnType.OTHERS
+    else:
+        raise ValueError(f"unexpected column type {column_type}")
+
+
 def get_picard_schema(
     db_table_names: List[str],
-    db_column_names: Dict[str, List[str]],
+    db_column_names: Dict[str, Union[List[str], List[int]]],
     db_column_types: List[str],
-    db_primary_keys: Dict[str, List[str]],
-    db_foreign_keys: Dict[str, List[str]],
+    db_primary_keys: Dict[str, List[int]],
+    db_foreign_keys: Dict[str, List[int]],
 ) -> SQLSchema:
+    star_id = next((c_id for c_id, c_name in enumerate(db_column_names["column_name"]) if c_name == "*"))
     column_names = dict(
-        (str(c_id), c_name) for c_id, c_name in enumerate(db_column_names["column_name"]) if c_name != "*"
+        (str(c_id), c_name) for c_id, c_name in enumerate(db_column_names["column_name"]) if c_id != star_id
+    )
+    column_types = dict(
+        (str(c_id), _get_picard_column_type(c_type)) for c_id, c_type in enumerate(db_column_types) if c_id != star_id
     )
     table_names = dict((str(t_id), t_name) for t_id, t_name in enumerate(db_table_names))
     column_to_table = dict(
         (str(c_id), str(t_id))
-        for c_id, (t_id, c_name) in enumerate(zip(db_column_names["table_id"], db_column_names["column_name"]))
-        if c_name != "*"
+        for c_id, (t_id, _c_name) in enumerate(zip(db_column_names["table_id"], db_column_names["column_name"]))
+        if c_id != star_id
     )
     table_to_columns = collections.defaultdict(list)
-    for c_id, (t_id, c_name) in enumerate(zip(db_column_names["table_id"], db_column_names["column_name"])):
-        if c_name == "*":
+    for c_id, (t_id, _c_name) in enumerate(zip(db_column_names["table_id"], db_column_names["column_name"])):
+        if c_id == star_id:
             continue
         table_to_columns[str(t_id)].append(str(c_id))
     foreign_keys = dict(
         (str(c_id), str(other_c_id))
         for c_id, other_c_id in zip(db_foreign_keys["column_id"], db_foreign_keys["other_column_id"])
+        if c_id != star_id and other_c_id != star_id
     )
-    # not yet used by Picard
-    foreign_keys_tables = dict()
-    primary_keys = list()
+    primary_keys = [str(c_id) for c_id in db_primary_keys["column_id"] if c_id != star_id]
     return SQLSchema(
         columnNames=column_names,
+        columnTypes=column_types,
         tableNames=table_names,
         columnToTable=column_to_table,
         tableToColumns=table_to_columns,
         foreignKeys=foreign_keys,
-        foreignKeysTables=foreign_keys_tables,
         primaryKeys=primary_keys,
     )

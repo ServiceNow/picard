@@ -3,15 +3,15 @@ module Language.SQL.SpiderSQL.Prelude where
 import Control.Applicative (Alternative (empty, (<|>)), Applicative (liftA2))
 import Control.Monad.Reader.Class (MonadReader (ask))
 import Data.Char (toLower)
-import Data.Foldable (Foldable (foldl'))
 import Data.Function (on)
 import Data.Functor (($>))
-import qualified Data.HashMap.Strict as HashMap (elems)
+import qualified Data.HashMap.Strict as HashMap (elems, intersectionWith)
 import Data.List (sortBy)
 import qualified Data.Text as Text
-import Picard.Types (SQLSchema (..))
+import Language.SQL.SpiderSQL.Syntax (SpiderTyp (..))
+import Picard.Types (ColumnType (..), SQLSchema (..))
 import Text.Parser.Char (CharParsing (..), alphaNum, digit)
-import Text.Parser.Combinators (Parsing (notFollowedBy, (<?>)), between)
+import Text.Parser.Combinators (Parsing (notFollowedBy, try, unexpected, (<?>)), between, choice)
 import Text.Read (readMaybe)
 
 -- $setup
@@ -20,11 +20,11 @@ import Text.Read (readMaybe)
 
 -- | Like 'many' but with an upper limit.
 -- @manyAtMost n p@ parses @p@ zero to @n@ times.
-manyAtMost :: Alternative f => Int -> f a -> f [a]
+manyAtMost :: forall m a. Parsing m => Int -> m a -> m [a]
 manyAtMost n q = manyAtMost_q n
   where
     manyAtMost_q 0 = pure []
-    manyAtMost_q m = someAtMost_q m <|> pure []
+    manyAtMost_q m = try (someAtMost_q m) <|> pure []
     someAtMost_q 0 = pure []
     someAtMost_q m = liftA2 (:) q (manyAtMost_q (m - 1))
 
@@ -53,13 +53,13 @@ intP n =
 -- Right (-1.2e-5)
 doubleP :: (CharParsing m, Monad m) => Int -> m Double
 doubleP n =
-  let q = digit <|> char '.' <|> char '-' <|> char '+' <|> char 'e' <|> char 'E'
+  let q = try digit <|> try (char '.') <|> try (char '-') <|> try (char '+') <|> try (char 'e') <|> try (char 'E')
       p = liftA2 (:) q (manyAtMost (n - 1) q)
    in flip (<?>) "double" $ p >>= maybe empty pure . readMaybe
 
 -- | @eitherP p p'@ combines the two alternatives @p@ and @p'@.
-eitherP :: Alternative f => f a -> f b -> f (Either a b)
-eitherP p p' = (Left <$> p) <|> (Right <$> p')
+eitherP :: forall m a b. Parsing m => m a -> m b -> m (Either a b)
+eitherP p p' = try (Left <$> p) <|> try (Right <$> p')
 
 -- | @combine p p'@ merges the results of @p@ and @p'@ using the 'Semigroup' instance.
 combine :: (Applicative f, Semigroup a) => f a -> f a -> f a
@@ -74,7 +74,7 @@ combines = foldl combine (pure mempty)
 -- >>> parseOnly (caselessString "singer_in_concert" <* endOfInput) "singer_in_concert"
 -- Right "singer_in_concert"
 caselessString :: CharParsing m => String -> m String
-caselessString = traverse (satisfy . ((. toLower) . (==) . toLower))
+caselessString = traverse (try . satisfy . ((. toLower) . (==) . toLower))
 
 -- | @keyword k@ is a parser that consumes 'Char' tokens and yields them
 -- if and only if they assemble the 'String' @s@. The parser is not sensitive to
@@ -86,7 +86,7 @@ caselessString = traverse (satisfy . ((. toLower) . (==) . toLower))
 -- >>> parseOnly (isKeyword "mykeyword" <* endOfInput) "MYKEYWRD"
 -- Left "mykeyword: satisfyElem"
 isKeyword :: CharParsing m => String -> m String
-isKeyword s = caselessString s <* notFollowedBy (alphaNum <|> char '_') <?> s
+isKeyword s = caselessString s <* notFollowedBy (try alphaNum <|> try (char '_')) <?> s
 
 -- >>> parseOnly (isSelect <* endOfInput) "sEleCt"
 -- Right "sEleCt"
@@ -232,19 +232,49 @@ tableNameP :: (CharParsing m, MonadReader SQLSchema m) => m String
 tableNameP = do
   SQLSchema {..} <- ask
   let p cn = caselessString cn $> cn
-  foldl'
-    (\agg tableName -> agg <|> p (Text.unpack tableName))
-    empty
-    (sortBy (compare `on` (negate . Text.length)) (HashMap.elems sQLSchema_tableNames))
+  choice $
+    fmap
+      (try . p . Text.unpack)
+      (sortBy (compare `on` (negate . Text.length)) (HashMap.elems sQLSchema_tableNames))
 
 columnNameP :: (CharParsing m, MonadReader SQLSchema m) => m String
 columnNameP = do
   SQLSchema {..} <- ask
   let p cn = caselessString cn $> cn
-  foldl'
-    (\agg columnName -> agg <|> p (Text.unpack columnName))
-    empty
-    (sortBy (compare `on` (negate . Text.length)) (HashMap.elems sQLSchema_columnNames))
+  choice $
+    fmap
+      (try . p . Text.unpack)
+      (sortBy (compare `on` (negate . Text.length)) (HashMap.elems sQLSchema_columnNames))
+
+toSpiderTyp :: forall m. Parsing m => ColumnType -> m SpiderTyp
+toSpiderTyp ColumnType_BOOLEAN = pure TBoolean
+toSpiderTyp ColumnType_TEXT = pure TText
+toSpiderTyp ColumnType_NUMBER = pure TNumber
+toSpiderTyp ColumnType_TIME = pure TTime
+toSpiderTyp ColumnType_OTHERS = pure TOthers
+toSpiderTyp (ColumnType__UNKNOWN x) = unexpected $ "unexpected column type " <> show x
+
+toColumnType :: forall m. Parsing m => SpiderTyp -> m ColumnType
+toColumnType TBoolean = pure ColumnType_BOOLEAN
+toColumnType TText = pure ColumnType_TEXT
+toColumnType TNumber = pure ColumnType_NUMBER
+toColumnType TTime = pure ColumnType_TIME
+toColumnType TOthers = pure ColumnType_OTHERS
+toColumnType TStar = unexpected $ "unexpected type " <> show TStar
+
+columnTypeAndNameP :: (CharParsing m, MonadReader SQLSchema m) => m (SpiderTyp, String)
+columnTypeAndNameP = do
+  SQLSchema {..} <- ask
+  let p columnTyp cn = do
+        typ <- toSpiderTyp columnTyp
+        caselessString cn $> (typ, cn)
+  choice $
+    fmap
+      (\(columnTyp, columnName) -> try (p columnTyp (Text.unpack columnName)))
+      ( sortBy
+              (compare `on` (negate . Text.length . snd))
+              (HashMap.elems $ HashMap.intersectionWith (,) sQLSchema_columnTypes sQLSchema_columnNames)
+      )
 
 -- | @quotedString n@ parses a quoted string with at most @n@ characters.
 --
@@ -265,5 +295,5 @@ columnNameP = do
 quotedString :: CharParsing m => Int -> m String
 quotedString n =
   flip (<?>) "quotedString" $
-    between isSingleQuote isSingleQuote (manyAtMost n (notChar '\''))
-      <|> between isDoubleQuote isDoubleQuote (manyAtMost n (notChar '"'))
+    try (between (try isSingleQuote) (try isSingleQuote) (try $ manyAtMost n (notChar '\'')))
+      <|> try (between (try isDoubleQuote) (try isDoubleQuote) (try $ manyAtMost n (notChar '"')))

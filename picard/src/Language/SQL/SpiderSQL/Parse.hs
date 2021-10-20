@@ -1,3 +1,7 @@
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE StandaloneDeriving #-}
+
 module Language.SQL.SpiderSQL.Parse where
 
 import Control.Applicative (Alternative (..), Applicative (liftA2), optional)
@@ -8,10 +12,10 @@ import Control.Monad.Reader.Class (MonadReader (ask))
 import Control.Monad.State.Class (MonadState (..), modify)
 import Control.Monad.State.Strict (evalStateT)
 import Data.Char (isAlpha, isAlphaNum, toLower)
-import Data.Foldable (Foldable (foldl'))
+import Data.Foldable (Foldable (foldl'), for_)
 import Data.Functor (($>))
 import Data.Generics.Product (field)
-import qualified Data.HashMap.Strict as HashMap (HashMap, compose, filter, insertWith, keys, lookup, member, toList)
+import qualified Data.HashMap.Strict as HashMap (HashMap, compose, filter, insertWith, intersectionWith, keys, lookup, member, toList)
 import qualified Data.HashSet as HashSet
 import Data.Hashable (Hashable)
 import qualified Data.Map as Map (Map, fromListWith, lookupLE, member, singleton, toList, union, unionWith)
@@ -19,9 +23,9 @@ import Data.Maybe (catMaybes, fromMaybe)
 import qualified Data.Text as Text
 import Data.Word (Word8)
 import GHC.Generics (Generic)
-import Language.SQL.SpiderSQL.Prelude (columnNameP, doubleP, eitherP, intP, isAnd, isAs, isAsc, isAvg, isBetween, isClosedParenthesis, isComma, isCount, isDesc, isDistinct, isDivide, isDot, isEq, isExcept, isFrom, isGe, isGroupBy, isGt, isHaving, isIn, isIntersect, isJoin, isLe, isLike, isLimit, isLt, isMax, isMin, isMinus, isNe, isNot, isOn, isOpenParenthesis, isOr, isOrderBy, isPlus, isSelect, isStar, isSum, isTimes, isUnion, isWhere, manyAtMost, quotedString, tableNameP)
-import Language.SQL.SpiderSQL.Syntax (Agg (..), AggType (..), Alias (..), ColUnit (..), ColumnId (..), Cond (..), From (..), OrderBy (..), OrderByOrder (..), Select (..), SpiderSQL (..), TableId (..), TableUnit (..), Val (..), ValUnit (..))
-import Picard.Types (SQLSchema (..))
+import Language.SQL.SpiderSQL.Prelude (columnNameP, columnTypeAndNameP, doubleP, eitherP, intP, isAnd, isAs, isAsc, isAvg, isBetween, isClosedParenthesis, isComma, isCount, isDesc, isDistinct, isDivide, isDot, isEq, isExcept, isFrom, isGe, isGroupBy, isGt, isHaving, isIn, isIntersect, isJoin, isLe, isLike, isLimit, isLt, isMax, isMin, isMinus, isNe, isNot, isOn, isOpenParenthesis, isOr, isOrderBy, isPlus, isSelect, isStar, isSum, isTimes, isUnion, isWhere, manyAtMost, quotedString, tableNameP, toColumnType)
+import Language.SQL.SpiderSQL.Syntax (Agg (..), AggType (..), Alias (..), ColUnit (..), ColumnId (..), Cond (..), From (..), OrderBy (..), OrderByOrder (..), SX (..), Select (..), SpiderSQL (..), SpiderTyp (..), TableId (..), TableUnit (..), Val (..), ValTC, ValUnit (..), X (..), XValUnit, colUnitTyp, selectTyp, spiderSQLTyp, valUnitTyp, pattern AggUD, pattern ColUnitUD, pattern ColumnIdUD, pattern ColumnUD, pattern DistinctColUnitUD, pattern SelectDistinctUD, pattern SelectUD, pattern SpiderSQLUD)
+import qualified Picard.Types (ColumnId, SQLSchema (..))
 import Text.Parser.Char (CharParsing (..), alphaNum, digit, spaces)
 import Text.Parser.Combinators (Parsing (..), between, choice, sepBy, sepBy1)
 import Text.Parser.Permutation (permute, (<$$>), (<||>))
@@ -53,48 +57,72 @@ import Text.Parser.Token (TokenParsing (..))
 -- A table alias defined in scope n is:
 -- - valid in scopes n, n + 1, ... unless shadowed by an alias defined in scope n' > n,
 -- - not valid in scopes 0, 1, ..., n - 1.
-data ParserState = ParserState
-  { psAliases :: HashMap.HashMap Alias (Map.Map Scope TableUnit),
-    psTables :: HashMap.HashMap (Either TableId Select) (HashSet.HashSet Scope),
+data ParserState x = ParserState
+  { psAliases :: HashMap.HashMap Alias (Map.Map Scope (TableUnit x)),
+    psTables :: HashMap.HashMap (Either TableId (Select x)) (HashSet.HashSet Scope),
     psCurScope :: Scope,
-    psGuards :: HashMap.HashMap Scope (HashSet.HashSet Guard)
+    psGuards :: HashMap.HashMap Scope (HashSet.HashSet (Guard x))
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Generic)
+
+type ParserStateUD = ParserState 'UD
+
+deriving stock instance Eq ParserStateUD
+
+deriving stock instance Show ParserStateUD
 
 newtype Scope = Scope Word8
   deriving stock (Generic)
   deriving (Show, Eq, Ord, Num, Enum, Bounded, Hashable) via Word8
 
-data Guard
-  = GuardTableColumn TableId ColumnId
-  | GuardAliasColumn Alias ColumnId
-  | GuardColumn ColumnId
-  deriving stock (Eq, Ord, Show, Generic)
-  deriving anyclass (Hashable)
+data Guard x
+  = GuardTableColumn TableId (ColumnId x)
+  | GuardAliasColumn Alias (ColumnId x)
+  | GuardColumn (ColumnId x)
+  deriving stock (Generic)
 
-mkParserState :: ParserState
-mkParserState = ParserState {psAliases = mempty, psTables = mempty, psCurScope = minBound, psGuards = mempty}
+type GuardUD = Guard 'UD
 
-newtype ParserEnvWithGuards
+deriving stock instance Eq GuardUD
+
+deriving stock instance Show GuardUD
+
+deriving anyclass instance Hashable GuardUD
+
+type GuardTC = Guard 'TC
+
+deriving stock instance Eq GuardTC
+
+deriving stock instance Show GuardTC
+
+deriving anyclass instance Hashable GuardTC
+
+mkParserStateUD :: ParserState 'UD
+mkParserStateUD = ParserState {psAliases = mempty, psTables = mempty, psCurScope = minBound, psGuards = mempty}
+
+mkParserStateTC :: ParserState 'TC
+mkParserStateTC = ParserState {psAliases = mempty, psTables = mempty, psCurScope = minBound, psGuards = mempty}
+
+newtype ParserEnvWithGuards x
   = ParserEnvWithGuards
       ( forall m p.
         ( Parsing m,
           MonadPlus m,
-          MonadState ParserState m
+          MonadState (ParserState x) m
         ) =>
-        SQLSchema ->
+        Picard.Types.SQLSchema ->
         m p ->
         m p
       )
 
 -- | ParserEnv
-data ParserEnv = ParserEnv
-  { peWithGuards :: ParserEnvWithGuards,
-    peSQLSchema :: SQLSchema
+data ParserEnv x = ParserEnv
+  { peWithGuards :: ParserEnvWithGuards x,
+    peSQLSchema :: Picard.Types.SQLSchema
   }
   deriving stock (Generic)
 
-type MonadSQL m = (MonadPlus m, MonadState ParserState m, MonadReader ParserEnv m)
+type MonadSQL x m = (MonadPlus m, MonadState (ParserState x) m, MonadReader (ParserEnv x) m)
 
 -- >>> testParseOnly (betweenParentheses $ char 'x') "x"
 -- Left "\"(\": satisfyElem"
@@ -107,8 +135,8 @@ type MonadSQL m = (MonadPlus m, MonadState ParserState m, MonadReader ParserEnv 
 betweenParentheses :: CharParsing m => m a -> m a
 betweenParentheses =
   between
-    (isOpenParenthesis <* spaces)
-    (spaces *> isClosedParenthesis)
+    (try $ isOpenParenthesis <* spaces)
+    (try $ spaces *> isClosedParenthesis)
 
 -- >>> testParseOnly (betweenOptionalParentheses $ char 'x') "x"
 -- Right 'x'
@@ -116,7 +144,7 @@ betweenParentheses =
 -- >>> testParseOnly (betweenOptionalParentheses $ char 'x') "(x)"
 -- Right 'x'
 betweenOptionalParentheses :: CharParsing m => m a -> m a
-betweenOptionalParentheses p = betweenParentheses p <|> p
+betweenOptionalParentheses p = try (betweenParentheses p) <|> try p
 
 -- | 'Select' parser
 --
@@ -131,15 +159,21 @@ betweenOptionalParentheses p = betweenParentheses p <|> p
 --
 -- >>> testParseOnly select "SELECT COUNT (DISTINCT T1.Title)"
 -- Right (Select [Agg (Just Count) (Column (ValColUnit {columnValue = DistinctColUnit {distinctColUnitAggId = Nothing, distinctColUnitTable = Just (Right (Alias {aliasName = "T1"})), distinctColUnitColdId = ColumnId {columnName = "Title"}}}))])
-select :: (TokenParsing m, MonadSQL m) => m Select
-select = flip (<?>) "select" $ do
+select :: forall x m. (TokenParsing m, MonadSQL x m) => SX x -> m (Select x)
+select sx = flip (<?>) "select" $ do
   _ <- isSelect
   someSpace
-  distinct <- optional (isDistinct <* spaces)
-  aggs <- sepBy (betweenOptionalParentheses agg) (spaces *> isComma <* spaces)
-  case distinct of
-    Just _ -> pure $ SelectDistinct aggs
-    Nothing -> pure $ Select aggs
+  distinct <- optional (try $ isDistinct <* spaces)
+  aggs <- sepBy (try $ betweenOptionalParentheses (agg sx)) (try $ spaces *> isComma <* spaces)
+  case sx of
+    SUD -> case distinct of
+      Just _ -> pure $ SelectDistinctUD aggs
+      Nothing -> pure $ SelectUD aggs
+    STC ->
+      let typ = (\case Agg typ' _ _ -> typ') <$> aggs
+       in case distinct of
+            Just _ -> pure $ SelectDistinct typ aggs
+            Nothing -> pure $ Select typ aggs
 
 -- | 'Agg' parser.
 --
@@ -157,16 +191,25 @@ select = flip (<?>) "select" $ do
 --
 -- >>> testParseOnly agg "count singer.Singer_ID"
 -- Right (Agg (Just Count) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Left (TableId {tableName = "singer"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})))
-agg :: (TokenParsing m, MonadSQL m) => m Agg
-agg =
+agg :: forall x m. (TokenParsing m, MonadSQL x m) => SX x -> m (Agg x)
+agg sx =
   flip (<?>) "agg" $ do
-    at <- optional aggType
-    Agg at
-      <$> case at of
-        Nothing -> valUnit
-        Just _ ->
-          (spaces *> betweenParentheses (spaces *> valUnit <* spaces))
-            <|> someSpace *> valUnit
+    at <- optional . try $ aggType
+    vu <- case at of
+      Nothing -> valUnit sx
+      Just _ ->
+        try (spaces *> betweenParentheses (spaces *> valUnit sx <* spaces))
+          <|> try (someSpace *> valUnit sx)
+    case sx of
+      SUD -> pure $ AggUD at vu
+      STC -> case (vu, at) of
+        (Column typ _, Nothing) -> pure $ Agg typ at vu
+        (Column _ _, Just Count) -> pure $ Agg TNumber at vu
+        (Column TNumber _, Just _) -> pure $ Agg TNumber at vu
+        (Column _ val', Just at') ->
+          unexpected $
+            "value " <> show val' <> " does not support " <> show at' <> " aggregation"
+        (_, _) -> pure $ Agg TNumber at vu
 
 -- | 'AggType' parser.
 --
@@ -175,15 +218,15 @@ agg =
 --
 -- >>> testParseOnly aggType "sum"
 -- Right Sum
-aggType :: CharParsing m => m AggType
+aggType :: forall m. CharParsing m => m AggType
 aggType = flip (<?>) "aggType" $ choice choices
   where
     choices =
-      [ isMax $> Max,
-        isMin $> Min,
-        isCount $> Count,
-        isSum $> Sum,
-        isAvg $> Avg
+      [ try $ isMax $> Max,
+        try $ isMin $> Min,
+        try $ isCount $> Count,
+        try $ isSum $> Sum,
+        try $ isAvg $> Avg
       ]
 
 -- | 'ValUnit' parser.
@@ -196,23 +239,59 @@ aggType = flip (<?>) "aggType" $ choice choices
 --
 -- >>> testParseOnly valUnit "t2.Sales / 4"
 -- Right (Divide (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Sales"}}}) (Number {numberValue = 4.0}))
-valUnit :: forall m. (TokenParsing m, MonadSQL m) => m ValUnit
-valUnit =
+valUnit :: forall x m. (TokenParsing m, MonadSQL x m) => SX x -> m (ValUnit x)
+valUnit sx =
   flip (<?>) "valUnit" $ do
-    column <- val
-    maybeBinary <-
+    column <- val sx
+    maybeBinary <- do
+      let vTyp :: ValTC -> m SpiderTyp
+          vTyp (ValColUnit typ _) = pure typ
+          vTyp (Number _) = pure TNumber
+          vTyp v@(ValString _) = unexpected $ "unexpected " <> show v
+          vTyp (ValSQL [typ] _) = pure typ
+          vTyp v@(ValSQL _ _) = unexpected $ "unexpected " <> show v
+          unifyVTyps vt vt'
+            | vt == TStar && vt' == TStar = pure TStar
+            | vt == TStar && vt' == TNumber = pure TStar
+            | vt == TNumber && vt' == TStar = pure TStar
+            | vt == TNumber && vt' == TNumber = pure TNumber
+            | vt == TStar && vt' == TTime = pure TStar
+            | vt == TTime && vt' == TStar = pure TStar
+            | vt == TTime && vt' == TTime = pure TTime
+            | otherwise = unexpected $ "the types " <> show vt <> " and " <> show vt' <> " are incompatible"
+          checkedBinary :: SX x -> (XValUnit x -> Val x -> Val x -> ValUnit x) -> Val x -> Val x -> m (ValUnit x)
+          checkedBinary SUD f v v' = pure $ f () v v'
+          checkedBinary STC f v v' = do
+            vt <- vTyp v
+            vt' <- vTyp v'
+            vt'' <- unifyVTyps vt vt'
+            pure $ f vt'' v v'
       optional
-        ( someSpace
-            *> choice
-              [ isMinus $> Minus column,
-                isPlus $> Plus column,
-                isTimes $> Times column,
-                isDivide $> Divide column
-              ]
+        ( try $
+            someSpace
+              *> choice
+                [ try $ isMinus $> checkedBinary sx Minus column,
+                  try $ isPlus $> checkedBinary sx Plus column,
+                  try $ isTimes $> checkedBinary sx Times column,
+                  try $ isDivide $> checkedBinary sx Divide column
+                ]
         )
-    case maybeBinary of
-      Nothing -> pure $ Column column
-      Just binary -> binary <$> (someSpace *> val)
+    case sx of
+      SUD -> case maybeBinary of
+        Nothing -> pure $ ColumnUD column
+        Just binary -> do
+          v' <- someSpace *> val sx
+          binary v'
+      STC -> case maybeBinary of
+        Nothing -> case column of
+          ValColUnit typ _ -> pure $ Column typ column
+          Number _ -> pure $ Column TNumber column
+          ValString _ -> pure $ Column TText column
+          ValSQL [typ] _ -> pure $ Column typ column
+          ValSQL _ _ -> unexpected $ "unexpected " <> show column
+        Just binary -> do
+          v' <- someSpace *> val sx
+          binary v'
 
 -- | 'ColUnit' parser.
 --
@@ -255,52 +334,83 @@ valUnit =
 -- >>> (Atto.parseOnly . flip runReaderT (ParserEnv (ParserEnvWithGuards withGuards) sqlSchema { sQLSchema_columnNames = HashMap.union (sQLSchema_columnNames sqlSchema) (HashMap.singleton "11" "country") }) . flip evalStateT mkParserState) colUnit "country"
 -- Right (ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "country"}})
 colUnit ::
-  forall m.
+  forall x m.
   ( TokenParsing m,
-    MonadSQL m
+    MonadSQL x m
   ) =>
-  m ColUnit
-colUnit = flip (<?>) "colUnit" $ do
-  at <- optional aggType
+  SX x ->
+  m (ColUnit x)
+colUnit sx = flip (<?>) "colUnit" $ do
+  at <- optional . try $ aggType
   (distinct, tabAli, col) <- do
     let p = do
-          distinct <- optional (isDistinct <* someSpace)
+          distinct <- optional (try $ isDistinct <* someSpace)
           (tabAli, col) <-
-            ((Nothing,) <$> columnId)
-              <|> ( (,)
-                      <$> (Just <$> (eitherP tableId alias' <* isDot))
-                        <*> columnId
-                  )
+            try ((Nothing,) <$> columnId sx)
+              <|> try
+                ( (,)
+                    <$> (Just <$> (eitherP tableId alias' <* isDot))
+                      <*> columnId sx
+                )
           pure (distinct, tabAli, col)
     case at of
       Nothing -> p
-      Just _ -> (spaces *> betweenParentheses p) <|> (someSpace *> p)
+      Just _ -> try (spaces *> betweenParentheses p) <|> try (someSpace *> p)
   v <-
-    HashSet.singleton <$> case tabAli of
+    case tabAli of
       Just (Left t) -> do
         ParserEnv _ sqlSchema <- ask
-        columnInTable <- guardTableColumn sqlSchema t col
+        columnInTable <- guardTableColumn sx sqlSchema t col
         case columnInTable of
           TableNotInScope -> pure $ GuardTableColumn t col
           ColumnNotInTable ->
             unexpected $
-              "column " <> show col <> " is not in table " <> show t
+              "column "
+                <> ( case sx of
+                       SUD -> show col
+                       STC -> show col
+                   )
+                <> " is not in table "
+                <> show t
           ColumnInTable -> pure $ GuardTableColumn t col
       Just (Right a) -> do
         ParserEnv _ sqlSchema <- ask
-        columnInAlias <- guardAliasColumn sqlSchema a col
+        columnInAlias <- guardAliasColumn sx sqlSchema a col
         case columnInAlias of
           AliasNotInScope -> pure $ GuardAliasColumn a col
           ColumnNotInAlias ->
             unexpected $
-              "column " <> show col <> " is not in alias " <> show a
+              "column "
+                <> ( case sx of
+                       SUD -> show col
+                       STC -> show col
+                   )
+                <> " is not in alias "
+                <> show a
           ColumnInAlias -> pure $ GuardAliasColumn a col
       Nothing -> pure $ GuardColumn col
   curScope <- (^. field @"psCurScope") <$> get
-  modify (field @"psGuards" %~ HashMap.insertWith HashSet.union curScope v)
-  case distinct of
-    Just _ -> pure $ DistinctColUnit at tabAli col
-    Nothing -> pure $ ColUnit at tabAli col
+  case sx of
+    SUD -> do
+      modify (field @"psGuards" %~ HashMap.insertWith HashSet.union curScope (HashSet.singleton v))
+      case distinct of
+        Just _ -> pure $ DistinctColUnitUD at tabAli col
+        Nothing -> pure $ ColUnitUD at tabAli col
+    STC -> do
+      modify (field @"psGuards" %~ HashMap.insertWith HashSet.union curScope (HashSet.singleton v))
+      let colTyp Star = TStar
+          colTyp (ColumnId typ _) = typ
+      colUnitTyp' <- case at of
+        Nothing -> pure $ colTyp col
+        Just Count -> pure TNumber
+        Just at'
+          | colTyp col == TNumber -> pure TNumber
+          | colTyp col == TTime -> pure TTime
+          | colTyp col == TStar -> pure TStar
+          | otherwise -> unexpected $ "unexpected column type " <> show (colTyp col) <> " for aggregation " <> show at'
+      case distinct of
+        Just _ -> pure $ DistinctColUnit colUnitTyp' at tabAli col
+        Nothing -> pure $ ColUnit colUnitTyp' at tabAli col
 
 -- | @inTable sqlSchema colId tabId@ checks if the 'ColumnId' @colId@ is valid for the table with the 'TableId' @tabId@ in the SQLSchema @sqlSchema@.
 --
@@ -312,34 +422,49 @@ colUnit = flip (<?>) "colUnit" $ do
 --
 -- >>> inTable sqlSchema (ColumnId "Citizenship") (TableId "song")
 -- False
-inTable :: SQLSchema -> ColumnId -> TableId -> Bool
-inTable _ Star _ = True
-inTable SQLSchema {..} ColumnId {..} TableId {..} =
-  let matchingColumnUIds =
-        HashMap.keys
+inTable :: forall x m. (Parsing m, Monad m) => SX x -> Picard.Types.SQLSchema -> ColumnId x -> TableId -> m Bool
+inTable _ _ Star _ = pure True
+inTable sx Picard.Types.SQLSchema {..} ColumnId {..} TableId {..} =
+  let matchingColumnUIds :: SX x -> m [Picard.Types.ColumnId]
+      matchingColumnUIds SUD =
+        pure
+          . HashMap.keys
           . HashMap.filter (\x -> Text.toLower (Text.pack columnName) == Text.toLower x)
           $ sQLSchema_columnNames
+      matchingColumnUIds STC = do
+        columnTyp <- toColumnType columnIdX
+        pure
+          . HashMap.keys
+          . HashMap.filter
+            ( \(columnTyp', columnName') ->
+                (Text.toLower (Text.pack columnName) == Text.toLower columnName')
+                  && (columnTyp' == columnTyp)
+            )
+          $ HashMap.intersectionWith (,) sQLSchema_columnTypes sQLSchema_columnNames
       columnUIdToTableName =
         sQLSchema_tableNames
           `HashMap.compose` sQLSchema_columnToTable
-      matchingTableNames =
-        catMaybes $
+      matchingTableNames = do
+        columnUIds <- matchingColumnUIds sx
+        pure . catMaybes $
           (`HashMap.lookup` columnUIdToTableName)
-            <$> matchingColumnUIds
-   in Text.pack tableName `elem` matchingTableNames
+            <$> columnUIds
+   in (Text.pack tableName `elem`) <$> matchingTableNames
 
 -- | @inSelect sqlSchema colId sel@ checks if the 'ColumnId' @colId@ is part of the 'Select' clause @sel@ in the SQLSchema @sqlSchema@.
-inSelect :: ColumnId -> Select -> Bool
-inSelect Star _ = True
-inSelect c s =
+inSelect :: forall x. SX x -> ColumnId x -> Select x -> Bool
+inSelect _ Star _ = True
+inSelect sx c s =
   case s of
-    Select aggs -> c `elem` go aggs
-    SelectDistinct aggs -> c `elem` go aggs
+    Select _ aggs -> elemC sx aggs
+    SelectDistinct _ aggs -> elemC sx aggs
   where
+    elemC SUD aggs = c `elem` go aggs
+    elemC STC aggs = c `elem` go aggs
     go [] = []
-    go (Agg _ (Column (ValColUnit ColUnit {..})) : aggs) = colUnitColId : go aggs
-    go (Agg _ (Column (ValColUnit DistinctColUnit {..})) : aggs) = distinctColUnitColdId : go aggs
-    go (Agg _ _ : aggs) = go aggs
+    go (Agg _ _ (Column _ (ValColUnit _ ColUnit {..})) : aggs) = colUnitColId : go aggs
+    go (Agg _ _ (Column _ (ValColUnit _ DistinctColUnit {..})) : aggs) = distinctColUnitColdId : go aggs
+    go (Agg {} : aggs) = go aggs
 
 data GuardTableColumnResult
   = TableNotInScope
@@ -348,24 +473,29 @@ data GuardTableColumnResult
   deriving stock (Eq, Show)
 
 guardTableColumn ::
-  ( Monad m,
-    MonadState ParserState m
+  forall x m.
+  ( Parsing m,
+    MonadState (ParserState x) m
   ) =>
-  SQLSchema ->
+  SX x ->
+  Picard.Types.SQLSchema ->
   TableId ->
-  ColumnId ->
+  ColumnId x ->
   m GuardTableColumnResult
-guardTableColumn sqlSchema t c = do
+guardTableColumn sx sqlSchema t c = do
   ParserState {..} <- get
-  pure $
-    if Left t `HashMap.member` psTables
-      then
-        if c `inTable'` t
-          then ColumnInTable
-          else ColumnNotInTable
-      else TableNotInScope
+  if memberT psTables
+    then do
+      cInT <- c `inTable'` t
+      if cInT
+        then pure ColumnInTable
+        else pure ColumnNotInTable
+    else pure TableNotInScope
   where
-    inTable' = inTable sqlSchema
+    memberT = case sx of
+      SUD -> (Left t `HashMap.member`)
+      STC -> (Left t `HashMap.member`)
+    inTable' = inTable sx sqlSchema
 
 data GuardAliasColumnResult
   = AliasNotInScope
@@ -374,15 +504,16 @@ data GuardAliasColumnResult
   deriving stock (Eq, Show)
 
 guardAliasColumn ::
-  forall m.
-  ( Monad m,
-    MonadState ParserState m
+  forall x m.
+  ( Parsing m,
+    MonadState (ParserState x) m
   ) =>
-  SQLSchema ->
+  SX x ->
+  Picard.Types.SQLSchema ->
   Alias ->
-  ColumnId ->
+  ColumnId x ->
   m GuardAliasColumnResult
-guardAliasColumn sqlSchema a c = do
+guardAliasColumn sx sqlSchema a c = do
   ParserState {..} <- get
   case HashMap.lookup a psAliases of
     Nothing -> pure AliasNotInScope
@@ -390,28 +521,30 @@ guardAliasColumn sqlSchema a c = do
       Nothing -> pure AliasNotInScope
       Just (_, TableUnitSQL SpiderSQL {..} _) ->
         pure $
-          if c `inSelect` spiderSQLSelect
+          if inSelect sx c spiderSQLSelect
             then ColumnInAlias
             else ColumnNotInAlias
       Just (_, Table t _) ->
-        pure $
-          let inTable' = inTable sqlSchema
-           in if c `inTable'` t
-                then ColumnInAlias
-                else ColumnNotInAlias
+        let inTable' = inTable sx sqlSchema
+         in do
+              cInT <- c `inTable'` t
+              if cInT
+                then pure ColumnInAlias
+                else pure ColumnNotInAlias
 
 guardColumn ::
-  forall m.
+  forall x m.
   ( Parsing m,
     Monad m,
-    MonadState ParserState m
+    MonadState (ParserState x) m
   ) =>
-  SQLSchema ->
-  ColumnId ->
+  SX x ->
+  Picard.Types.SQLSchema ->
+  ColumnId x ->
   m ()
-guardColumn sqlSchema = go
+guardColumn sx sqlSchema = go
   where
-    inTable' = inTable sqlSchema
+    inTable' = inTable sx sqlSchema
     go Star = pure ()
     go c = do
       ParserState {..} <- get
@@ -419,12 +552,11 @@ guardColumn sqlSchema = go
         Map.fromListWith (+) . join
           <$> traverse
             ( \case
-                (Left t, scopes) ->
-                  pure $
-                    let columnInTable = c `inTable'` t
-                     in (,fromEnum columnInTable) <$> HashSet.toList scopes
+                (Left t, scopes) -> do
+                  columnInTable <- c `inTable'` t
+                  pure $ (,fromEnum columnInTable) <$> HashSet.toList scopes
                 (Right s, scopes) ->
-                  pure $ (,fromEnum $ c `inSelect` s) <$> HashSet.toList scopes
+                  pure $ (,fromEnum $ inSelect sx c s) <$> HashSet.toList scopes
             )
             (HashMap.toList psTables)
       columnInAliasesPerScope <-
@@ -435,11 +567,10 @@ guardColumn sqlSchema = go
                   ( \(scope, tu) ->
                       case tu of
                         TableUnitSQL SpiderSQL {..} _ ->
-                          pure (scope, fromEnum $ c `inSelect` spiderSQLSelect)
-                        Table t _ ->
-                          pure $
-                            let columnInTable = c `inTable'` t
-                             in (scope, fromEnum columnInTable)
+                          pure (scope, fromEnum $ inSelect sx c spiderSQLSelect)
+                        Table t _ -> do
+                          columnInTable <- c `inTable'` t
+                          pure (scope, fromEnum columnInTable)
                   )
                   (Map.toList scopes)
             )
@@ -451,27 +582,37 @@ guardColumn sqlSchema = go
         )
         . unexpected
         $ "there is no single table in scope with column "
-          <> show c
+          <> ( case sx of
+                 SUD -> show c
+                 STC -> show c
+             )
           <> "."
 
 -- | @withGuards sqlSchema p@ fails conditioned on whether or not
 -- all referenced columns are members of tables or aliases that are in scope.
 withGuards ::
-  forall m p.
+  forall x m p.
   ( Parsing m,
     MonadPlus m,
-    MonadState ParserState m
+    MonadState (ParserState x) m
   ) =>
-  SQLSchema ->
+  SX x ->
+  Picard.Types.SQLSchema ->
   m p ->
   m p
-withGuards sqlSchema p = do
+withGuards sx sqlSchema p = do
   pRes <- p
   ParserState {..} <- get
-  let curGuards = fromMaybe mempty $ HashMap.lookup psCurScope psGuards
-      f :: Guard -> m ()
+  let curGuards =
+        fromMaybe
+          ( case sx of
+              SUD -> mempty
+              STC -> mempty
+          )
+          $ HashMap.lookup psCurScope psGuards
+      f :: Guard x -> m ()
       f (GuardTableColumn t c) = do
-        columnInTable <- guardTableColumn sqlSchema t c
+        columnInTable <- guardTableColumn sx sqlSchema t c
         case columnInTable of
           TableNotInScope ->
             unexpected $
@@ -481,13 +622,16 @@ withGuards sqlSchema p = do
           ColumnNotInTable ->
             unexpected $
               "column "
-                <> show c
+                <> ( case sx of
+                       SUD -> show c
+                       STC -> show c
+                   )
                 <> " is not in table "
                 <> show t
                 <> "."
           ColumnInTable -> pure ()
       f (GuardAliasColumn a c) = do
-        columnInAlias <- guardAliasColumn sqlSchema a c
+        columnInAlias <- guardAliasColumn sx sqlSchema a c
         case columnInAlias of
           AliasNotInScope ->
             unexpected $
@@ -496,12 +640,16 @@ withGuards sqlSchema p = do
                 <> " is not in scope."
           ColumnNotInAlias ->
             unexpected $
-              "column " <> show c
+              "column "
+                <> ( case sx of
+                       SUD -> show c
+                       STC -> show c
+                   )
                 <> " is not in alias "
                 <> show a
                 <> "."
           ColumnInAlias -> pure ()
-      f (GuardColumn c) = guardColumn sqlSchema c
+      f (GuardColumn c) = guardColumn sx sqlSchema c
   forM_ curGuards f
   pure pRes
 
@@ -518,9 +666,9 @@ withGuards sqlSchema p = do
 --
 -- >>> (Atto.parseOnly . flip runReaderT (ParserEnv (ParserEnvWithGuards withGuards) sqlSchema { sQLSchema_tableNames = HashMap.union (sQLSchema_tableNames sqlSchema) (HashMap.singleton "2" "singers") }) . flip evalStateT mkParserState) (tableId <* (lift . lift) Atto.endOfInput) "singers"
 -- Right (TableId {tableName = "singers"})
-tableId :: forall m. (CharParsing m, MonadReader ParserEnv m, MonadPlus m) => m TableId
+tableId :: forall x m. (CharParsing m, MonadReader (ParserEnv x) m, MonadPlus m) => m TableId
 tableId =
-  let terminate q = q <* notFollowedBy (alphaNum <|> char '_')
+  let terminate q = try q <* notFollowedBy (try alphaNum <|> try (char '_'))
    in flip (<?>) "tableId" $ do
         ParserEnv _ sqlSchema <- ask
         let tableNameP' = runReaderT tableNameP sqlSchema
@@ -529,20 +677,20 @@ tableId =
 -- | 'Alias' parser.
 --
 -- Hardcoded to start with an alphabetic character and to be at most 10 characters long.
-alias :: forall m. (CharParsing m, MonadReader ParserEnv m, MonadPlus m) => m Alias
+alias :: forall x m. (CharParsing m, MonadReader (ParserEnv x) m, MonadPlus m) => m Alias
 alias =
-  let terminate q = q <* notFollowedBy (alphaNum <|> char '_')
+  let terminate q = q <* notFollowedBy (try alphaNum <|> try (char '_'))
       name =
-        let p = satisfy ((||) <$> isAlphaNum <*> (== '_'))
+        let p = try $ satisfy ((||) <$> isAlphaNum <*> (== '_'))
          in liftA2 (:) (satisfy isAlpha) (manyAtMost (9 :: Int) p)
    in flip (<?>) "alias" $ do
         ParserEnv _ sqlSchema <- ask
         let tableNameP' = runReaderT tableNameP sqlSchema
             columnNameP' = runReaderT columnNameP sqlSchema
         Alias
-          <$> ( (columnNameP' *> unexpected "alias must not be column name")
-                  <|> (tableNameP' *> unexpected "alias must not be table name")
-                  <|> terminate name
+          <$> ( try (columnNameP' *> unexpected "alias must not be column name")
+                  <|> try (tableNameP' *> unexpected "alias must not be table name")
+                  <|> try (terminate name)
               )
 
 -- | Alternative 'Alias' parser.
@@ -550,8 +698,8 @@ alias =
 -- Hardcoded to start with a T followed by at most 9 digits.
 alias' :: (CharParsing m, Monad m) => m Alias
 alias' = flip (<?>) "alias" $ do
-  _ <- satisfy (\c -> toLower c == 't')
-  let terminate q = q <* notFollowedBy (alphaNum <|> char '_')
+  _ <- try $ satisfy (\c -> toLower c == 't')
+  let terminate q = try q <* notFollowedBy (try alphaNum <|> try (char '_'))
   digits <- terminate $ liftA2 (:) digit (manyAtMost (9 :: Int) digit)
   pure . Alias $ "T" <> digits
 
@@ -568,13 +716,18 @@ alias' = flip (<?>) "alias" $ do
 --
 -- >>> testParseOnly columnId "birth_year"
 -- Right (ColumnId {columnName = "Birth_Year"})
-columnId :: forall m. (CharParsing m, MonadReader ParserEnv m, MonadPlus m) => m ColumnId
-columnId =
-  let terminate q = q <* notFollowedBy (alphaNum <|> char '_')
+columnId :: forall x m. (CharParsing m, MonadReader (ParserEnv x) m, MonadPlus m) => SX x -> m (ColumnId x)
+columnId sx =
+  let terminate q = q <* notFollowedBy (try alphaNum <|> try (char '_'))
    in flip (<?>) "columnId" $ do
         ParserEnv _ sqlSchema <- ask
-        let columnNameP' = runReaderT columnNameP sqlSchema
-        isStar $> Star <|> (ColumnId <$> terminate columnNameP')
+        case sx of
+          SUD ->
+            let columnNameP' = runReaderT columnNameP sqlSchema
+             in try (isStar $> Star) <|> try (ColumnIdUD <$> terminate columnNameP')
+          STC ->
+            let columnTypeAndNameP' = runReaderT columnTypeAndNameP sqlSchema
+             in try (isStar $> Star) <|> try (uncurry ColumnId <$> terminate columnTypeAndNameP')
 
 -- | 'From' parser.
 --
@@ -584,35 +737,38 @@ columnId =
 -- >>> testParseOnly from "FROM singer AS T1 JOIN song AS T2 ON T1.Singer_ID = T2.Singer_ID"
 -- Right (From {fromTableUnits = [Table (TableId {tableName = "singer"}) (Just (Alias {aliasName = "T1"})),Table (TableId {tableName = "song"}) (Just (Alias {aliasName = "T2"}))], fromCond = Just (Eq (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})))})
 from ::
-  forall m.
+  forall x m.
   ( TokenParsing m,
-    MonadSQL m
+    MonadSQL x m
   ) =>
-  m From
-from = flip (<?>) "from" $ do
+  SX x ->
+  m (From x)
+from sx = flip (<?>) "from" $ do
   _ <- isFrom
   someSpace
   uncurry mkFrom <$> p
   where
-    p :: m (TableUnit, [(TableUnit, Maybe Cond)])
+    p :: m (TableUnit x, [(TableUnit x, Maybe (Cond x))])
     p =
       (,)
-        <$> tableUnit
+        <$> tableUnit sx
         <*> many
-          ( someSpace
-              *> isJoin
-              *> someSpace
-              *> ( (,)
-                     <$> tableUnit
-                     <*> optional
-                       ( someSpace
-                           *> isOn
-                           *> someSpace
-                           *> cond
-                       )
-                 )
+          ( try $
+              someSpace
+                *> isJoin
+                *> someSpace
+                *> ( (,)
+                       <$> tableUnit sx
+                       <*> optional
+                         ( try $
+                             someSpace
+                               *> isOn
+                               *> someSpace
+                               *> cond sx
+                         )
+                   )
           )
-    mkFrom :: TableUnit -> [(TableUnit, Maybe Cond)] -> From
+    mkFrom :: TableUnit x -> [(TableUnit x, Maybe (Cond x))] -> From x
     mkFrom tu tus =
       From
         (tu : fmap fst tus)
@@ -629,14 +785,15 @@ from = flip (<?>) "from" $ do
         )
 
 updateAliases ::
-  forall m.
+  forall x m.
   ( Parsing m,
-    MonadSQL m
+    MonadSQL x m
   ) =>
+  SX x ->
   Alias ->
-  TableUnit ->
+  TableUnit x ->
   m ()
-updateAliases a tu = do
+updateAliases sx a tu = do
   ParserState {..} <- get
   hasConflict <-
     maybe False (Map.member psCurScope)
@@ -650,16 +807,25 @@ updateAliases a tu = do
       <> "is already in this scope."
   let v = Map.singleton psCurScope tu
   modify (field @"psAliases" %~ HashMap.insertWith Map.union a v)
-  let curGuards = fromMaybe mempty $ HashMap.lookup psCurScope psGuards
+  let curGuards =
+        fromMaybe
+          ( case sx of
+              SUD -> mempty
+              STC -> mempty
+          )
+          $ HashMap.lookup psCurScope psGuards
       f (GuardAliasColumn a' c) | a == a' = do
         ParserEnv _ sqlSchema <- ask
-        columnInAlias <- guardAliasColumn sqlSchema a c
+        columnInAlias <- guardAliasColumn sx sqlSchema a c
         case columnInAlias of
           AliasNotInScope -> error "impossible"
           ColumnNotInAlias ->
             unexpected $
               "column "
-                <> show c
+                <> ( case sx of
+                       SUD -> show c
+                       STC -> show c
+                   )
                 <> " is not in alias "
                 <> show a
                 <> "."
@@ -668,17 +834,21 @@ updateAliases a tu = do
   forM_ curGuards f
 
 updateTables ::
-  forall m.
+  forall x m.
   ( Parsing m,
-    MonadSQL m
+    MonadSQL x m
   ) =>
-  Either TableId Select ->
+  SX x ->
+  Either TableId (Select x) ->
   m ()
-updateTables (Left t) = do
+updateTables sx (Left t) = do
   ParserState {..} <- get
   hasConflict <-
     maybe False (HashSet.member psCurScope)
-      . HashMap.lookup (Left t)
+      . ( case sx of
+            SUD -> HashMap.lookup (Left t)
+            STC -> HashMap.lookup (Left t)
+        )
       . (^. field @"psTables")
       <$> get
   when hasConflict
@@ -687,27 +857,48 @@ updateTables (Left t) = do
       <> show t
       <> "is already in this scope."
   let v = HashSet.singleton psCurScope
-  modify (field @"psTables" %~ HashMap.insertWith HashSet.union (Left t) v)
-  let curGuards = fromMaybe mempty $ HashMap.lookup psCurScope psGuards
+  modify
+    ( field @"psTables"
+        %~ ( case sx of
+               SUD -> HashMap.insertWith HashSet.union (Left t) v
+               STC -> HashMap.insertWith HashSet.union (Left t) v
+           )
+    )
+  let curGuards =
+        fromMaybe
+          ( case sx of
+              SUD -> mempty
+              STC -> mempty
+          )
+          $ HashMap.lookup psCurScope psGuards
       f (GuardTableColumn t' c) | t == t' = do
         ParserEnv _ sqlSchema <- ask
-        columnInTable <- guardTableColumn sqlSchema t c
+        columnInTable <- guardTableColumn sx sqlSchema t c
         case columnInTable of
           TableNotInScope -> error "impossible"
           ColumnNotInTable ->
             unexpected $
               "column "
-                <> show c
+                <> ( case sx of
+                       SUD -> show c
+                       STC -> show c
+                   )
                 <> " is not in table "
                 <> show t
                 <> "."
           ColumnInTable -> pure ()
       f _ = pure ()
   forM_ curGuards f
-updateTables (Right s) = do
+updateTables sx (Right s) = do
   ParserState {..} <- get
   let v = HashSet.singleton psCurScope
-  modify (field @"psTables" %~ HashMap.insertWith HashSet.union (Right s) v)
+  modify
+    ( field @"psTables"
+        %~ ( case sx of
+               SUD -> HashMap.insertWith HashSet.union (Right s) v
+               STC -> HashMap.insertWith HashSet.union (Right s) v
+           )
+    )
 
 -- | 'TableUnit' parser.
 --
@@ -720,31 +911,32 @@ updateTables (Right s) = do
 -- >>> testParseOnly tableUnit "(SELECT * FROM song) as t1"
 -- Right (TableUnitSQL (SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}) (Just (Alias {aliasName = "T1"})))
 tableUnit ::
-  forall m.
+  forall x m.
   ( TokenParsing m,
-    MonadSQL m
+    MonadSQL x m
   ) =>
-  m TableUnit
-tableUnit =
+  SX x ->
+  m (TableUnit x)
+tableUnit sx =
   flip (<?>) "tableUnit" $
     let aliasP = someSpace *> isAs *> someSpace *> alias'
         tableUnitSQL =
           flip (<?>) "tableUnitSQL" $
             TableUnitSQL
-              <$> betweenParentheses (get >>= spiderSQL . (field @"psCurScope" %~ succ))
-                <*> optional aliasP
+              <$> betweenParentheses (get >>= spiderSQL sx . (field @"psCurScope" %~ succ))
+                <*> optional (try aliasP)
         table =
           flip (<?>) "table" $
             Table
               <$> tableId
-                <*> optional aliasP
+                <*> optional (try aliasP)
      in do
-          tu <- tableUnitSQL <|> table
+          tu <- try tableUnitSQL <|> try table
           case tu of
-            TableUnitSQL _ (Just a) -> updateAliases a tu
-            TableUnitSQL SpiderSQL {..} Nothing -> updateTables (Right spiderSQLSelect)
-            Table _ (Just a) -> updateAliases a tu
-            Table t Nothing -> updateTables (Left t)
+            TableUnitSQL _ (Just a) -> updateAliases sx a tu
+            TableUnitSQL SpiderSQL {..} Nothing -> updateTables sx (Right spiderSQLSelect)
+            Table _ (Just a) -> updateAliases sx a tu
+            Table t Nothing -> updateTables sx (Left t)
           pure tu
 
 -- | 'Cond' parser.
@@ -778,48 +970,77 @@ tableUnit =
 --
 -- >>> testParseOnly cond "(t1.Singer_ID - t2.Singer_ID) = (select (song_id - song_id) from song order by (song_id - song_id) desc)"
 -- Right (Eq (Minus (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})) (Column (ValSQL {sqlValue = SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Minus (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Just (OrderBy [(Minus (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}),Desc)]), spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}})))
-cond :: (TokenParsing m, MonadSQL m) => m Cond
-cond =
+cond :: forall x m. (TokenParsing m, MonadSQL x m) => SX x -> m (Cond x)
+cond sx =
   flip (<?>) "cond" $
     let mkCond p' =
           let suffix r' =
                 let q = mkCond p'
                  in choice
-                      [ And r' <$> (someSpace *> isAnd *> someSpace *> q),
-                        Or r' <$> (someSpace *> isOr *> someSpace *> q)
+                      [ try $ And r' <$> (someSpace *> isAnd *> someSpace *> q),
+                        try $ Or r' <$> (someSpace *> isOr *> someSpace *> q)
                       ]
               suffixRec base = do
                 c <- base
-                suffixRec (suffix c) <|> pure c
+                try (suffixRec (suffix c)) <|> try (pure c)
               r =
                 choice
-                  [ Not <$> (isNot *> spaces *> p'),
-                    p'
+                  [ try $ Not <$> (isNot *> spaces *> p'),
+                    try p'
                   ]
            in suffixRec r
+        starEq TStar _ = True
+        starEq _ TStar = True
+        starEq typ typ' = typ == typ'
+        checkedEquality :: SX x -> (ValUnit x -> ValUnit x -> Cond x) -> ValUnit x -> ValUnit x -> m (Cond x)
+        checkedEquality SUD f vu vu' = pure $ f vu vu'
+        checkedEquality STC f vu vu'
+          | valUnitTyp vu `starEq` valUnitTyp vu' = pure $ f vu vu'
+          | otherwise = unexpected $ "the types of " <> show vu <> " and " <> show vu' <> " do not work for equality conditions"
+        checkedNumerical :: SX x -> (ValUnit x -> ValUnit x -> Cond x) -> ValUnit x -> ValUnit x -> m (Cond x)
+        checkedNumerical SUD f vu vu' = pure $ f vu vu'
+        checkedNumerical STC f vu vu'
+          | valUnitTyp vu `starEq` TNumber && valUnitTyp vu' `starEq` TNumber = pure $ f vu vu'
+          | valUnitTyp vu `starEq` TTime && valUnitTyp vu' `starEq` TTime = pure $ f vu vu'
+          | otherwise = unexpected $ "the types of " <> show vu <> " and " <> show vu' <> " do not work for numerical comparison conditions"
+        checkedLikeness :: SX x -> (ValUnit x -> ValUnit x -> Cond x) -> ValUnit x -> ValUnit x -> m (Cond x)
+        checkedLikeness SUD f vu vu' = pure $ f vu vu'
+        checkedLikeness STC f vu vu'
+          | valUnitTyp vu `starEq` TText && valUnitTyp vu' `starEq` TText = pure $ f vu vu'
+          | otherwise = unexpected $ "the types of " <> show vu <> " and " <> show vu' <> " do not work for like conditions"
+        checkedBetween :: SX x -> ValUnit x -> ValUnit x -> ValUnit x -> m (Cond x)
+        checkedBetween SUD vu vu' vu'' = pure $ Between vu vu' vu''
+        checkedBetween STC vu vu' vu''
+          | valUnitTyp vu `starEq` TNumber && valUnitTyp vu' `starEq` TNumber && valUnitTyp vu'' `starEq` TNumber = pure $ Between vu vu' vu''
+          | valUnitTyp vu `starEq` TTime && valUnitTyp vu' `starEq` TTime && valUnitTyp vu'' `starEq` TTime = pure $ Between vu vu' vu''
+          | otherwise = unexpected $ "the types of " <> show vu <> ", " <> show vu' <> ", and " <> show vu'' <> " do not work for between conditions"
         p =
           choice
-            [ binary Eq isEq,
-              binary Ge isGe,
-              binary Le isLe,
-              binary Gt isGt,
-              binary Lt isLt,
-              binary Ne isNe,
-              binary In isIn,
-              binaryNot In isIn,
-              binary Like isLike,
-              binaryNot Like isLike,
-              Between
-                <$> betweenOptionalParentheses valUnit
-                <*> (someSpace *> isBetween *> someSpace *> betweenOptionalParentheses valUnit)
-                <*> (someSpace *> isAnd *> someSpace *> betweenOptionalParentheses valUnit)
+            [ try $ binary (checkedEquality sx Eq) isEq,
+              try $ binary (checkedNumerical sx Ge) isGe,
+              try $ binary (checkedNumerical sx Le) isLe,
+              try $ binary (checkedNumerical sx Gt) isGt,
+              try $ binary (checkedNumerical sx Lt) isLt,
+              try $ binary (checkedEquality sx Ne) isNe,
+              try $ binary (checkedEquality sx In) isIn,
+              try $ binaryNot (checkedEquality sx In) isIn,
+              try $ binary (checkedLikeness sx Like) isLike,
+              try $ binaryNot (checkedLikeness sx Like) isLike,
+              try between'
             ]
-        binary f q =
-          f <$> betweenOptionalParentheses valUnit
-            <*> (spaces *> q *> spaces *> betweenOptionalParentheses valUnit)
-        binaryNot f q =
-          (Not .) . f <$> betweenOptionalParentheses valUnit
-            <*> (spaces *> isNot *> someSpace *> q *> spaces *> betweenOptionalParentheses valUnit)
+        binary f q = do
+          vu <- betweenOptionalParentheses (valUnit sx)
+          vu' <- spaces *> q *> spaces *> betweenOptionalParentheses (valUnit sx)
+          f vu vu'
+        binaryNot f q = do
+          vu <- betweenOptionalParentheses (valUnit sx)
+          vu' <- spaces *> isNot *> someSpace *> q *> spaces *> betweenOptionalParentheses (valUnit sx)
+          Not <$> f vu vu'
+        between' = do
+          vu <- betweenOptionalParentheses (valUnit sx)
+          vu' <- someSpace *> isBetween *> someSpace *> betweenOptionalParentheses (valUnit sx)
+          vu'' <- someSpace *> isAnd *> someSpace *> betweenOptionalParentheses (valUnit sx)
+          checkedBetween sx vu vu' vu''
      in mkCond p
 
 -- | 'Val' parser.
@@ -836,22 +1057,24 @@ cond =
 -- >>> testParseOnly val "(select song_id from song)"
 -- Right (ValSQL {sqlValue = SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}})
 val ::
-  forall m.
+  forall x m.
   ( TokenParsing m,
-    MonadSQL m
+    MonadSQL x m
   ) =>
-  m Val
-val = flip (<?>) "val" $ choice choices
+  SX x ->
+  m (Val x)
+val sx = flip (<?>) "val" $ choice choices
   where
-    terminate q = q <* notFollowedBy (alphaNum <|> char '_')
-    choices = [valColUnit, number, valString, valSQL]
-    valColUnit = ValColUnit <$> colUnit
+    terminate q = q <* notFollowedBy (try alphaNum <|> try (char '_'))
+    choices = [try valColUnit, try number, try valString, try valSQL]
+    valColUnit = do
+      cu <- colUnit sx
+      pure $ ValColUnit (colUnitTyp cu) cu
     number = Number <$> terminate (doubleP 16)
     valString = ValString <$> terminate (quotedString 64)
-    valSQL =
-      ValSQL
-        <$> betweenParentheses
-          (get >>= spiderSQL . (field @"psCurScope" %~ succ))
+    valSQL = do
+      sql <- betweenParentheses (get >>= spiderSQL sx . (field @"psCurScope" %~ succ))
+      pure $ ValSQL (spiderSQLTyp sql) sql
 
 -- | Parser for WHERE clauses.
 --
@@ -860,8 +1083,8 @@ val = flip (<?>) "val" $ choice choices
 --
 -- >>> testParseOnly whereCond "where Singer_ID = 1"
 -- Right (Eq (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Singer_ID"}}})) (Column (Number {numberValue = 1.0})))
-whereCond :: (TokenParsing m, MonadSQL m) => m Cond
-whereCond = flip (<?>) "whereCond" $ isWhere *> someSpace *> cond
+whereCond :: forall x m. (TokenParsing m, MonadSQL x m) => SX x -> m (Cond x)
+whereCond sx = flip (<?>) "whereCond" $ isWhere *> someSpace *> cond sx
 
 -- | Parser for group-by clauses.
 --
@@ -874,16 +1097,17 @@ whereCond = flip (<?>) "whereCond" $ isWhere *> someSpace *> cond
 -- >>> testParseOnly groupBy "group by count t1.Song_ID, t2.Singer_ID"
 -- Right [ColUnit {colUnitAggId = Just Count, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Song_ID"}},ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}]
 groupBy ::
-  forall m.
+  forall x m.
   ( TokenParsing m,
-    MonadSQL m
+    MonadSQL x m
   ) =>
-  m [ColUnit]
-groupBy =
+  SX x ->
+  m [ColUnit x]
+groupBy sx =
   flip (<?>) "groupBy" $
     isGroupBy
       *> someSpace
-      *> sepBy1 (betweenOptionalParentheses colUnit) (spaces *> isComma <* someSpace)
+      *> sepBy1 (try $ betweenOptionalParentheses (colUnit sx)) (try $ spaces *> isComma <* someSpace)
 
 -- | 'OrderBy' Parser.
 --
@@ -898,22 +1122,22 @@ groupBy =
 --
 -- >>> testParseOnly orderBy "order by sum(t1.Song_ID)"
 -- Right (OrderBy [(Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Just Sum, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Song_ID"}}}),Asc)])
-orderBy :: forall m. (TokenParsing m, MonadSQL m) => m OrderBy
-orderBy = flip (<?>) "orderBy" $ do
+orderBy :: forall x m. (TokenParsing m, MonadSQL x m) => SX x -> m (OrderBy x)
+orderBy sx = flip (<?>) "orderBy" $ do
   _ <- isOrderBy
   someSpace
   valUnits <-
-    let order = optional (spaces *> (isAsc $> Asc <|> isDesc $> Desc)) >>= maybe (pure Asc) pure
-        p = (,) <$> betweenOptionalParentheses valUnit <*> order
-     in sepBy1 p (spaces *> isComma <* someSpace)
+    let order = optional (try $ spaces *> (try (isAsc $> Asc) <|> try (isDesc $> Desc))) >>= maybe (pure Asc) pure
+        p = (,) <$> betweenOptionalParentheses (valUnit sx) <*> order
+     in sepBy1 (try p) (try $ spaces *> isComma <* someSpace)
   pure $ OrderBy valUnits
 
 -- | Parser for HAVING clauses.
 --
 -- >>> testParseOnly havingCond "having count(t1.Sales) = 10"
 -- Right (Eq (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Just Count, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Sales"}}})) (Column (Number {numberValue = 10.0})))
-havingCond :: forall m. (TokenParsing m, MonadSQL m) => m Cond
-havingCond = flip (<?>) "havingCond" $ isHaving *> someSpace *> cond
+havingCond :: forall x m. (TokenParsing m, MonadSQL x m) => SX x -> m (Cond x)
+havingCond sx = flip (<?>) "havingCond" $ isHaving *> someSpace *> cond sx
 
 -- | Parser for LIMIT clauses.
 --
@@ -960,31 +1184,41 @@ limit = flip (<?>) "limit" $ isLimit *> someSpace *> intP 8
 -- >>> spiderSQLTestParse "SELECT T1.title ,  count(*) FROM song AS T1 JOIN song AS T2 ON T1.song id"
 -- Done " ON T1.song id" (SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Title"}}})),Agg (Just Count) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) (Just (Alias {aliasName = "T1"})),Table (TableId {tableName = "song"}) (Just (Alias {aliasName = "T2"}))], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
 spiderSQL ::
-  forall m.
+  forall x m.
   ( TokenParsing m,
     MonadPlus m,
-    MonadReader ParserEnv m
+    MonadReader (ParserEnv x) m
   ) =>
-  ParserState ->
-  m SpiderSQL
-spiderSQL env =
+  SX x ->
+  ParserState x ->
+  m (SpiderSQL x)
+spiderSQL sx env =
   flip (<?>) "spiderSQL" $
     flip evalStateT env $ do
       ParserEnv (ParserEnvWithGuards peWithGuards) sqlSchema <- ask
-      sel <- select
-      fro <- peWithGuards sqlSchema $ fromMaybe (From [] Nothing) <$> optional (spaces *> from)
-      whe <- optional (peWithGuards sqlSchema $ someSpace *> whereCond)
-      grp <- fromMaybe [] <$> optional (peWithGuards sqlSchema $ someSpace *> groupBy)
+      sel <- select sx
+      fro <- peWithGuards sqlSchema $ fromMaybe (From [] Nothing) <$> optional (try $ spaces *> from sx)
+      whe <- optional (try . peWithGuards sqlSchema $ someSpace *> whereCond sx)
+      grp <- fromMaybe [] <$> optional (try . peWithGuards sqlSchema $ someSpace *> groupBy sx)
       (ord, hav) <-
         permute
-          ( (,) <$$> optional (peWithGuards sqlSchema $ someSpace *> orderBy)
-              <||> optional (peWithGuards sqlSchema $ someSpace *> havingCond)
+          ( (,) <$$> try (optional (try . peWithGuards sqlSchema $ someSpace *> orderBy sx))
+              <||> try (optional (try . peWithGuards sqlSchema $ someSpace *> havingCond sx))
           )
-      lim <- optional (someSpace *> limit)
+      lim <- optional (try $ someSpace *> limit)
       (int, exc, uni) <-
         permute
-          ( (,,) <$$> optional (someSpace *> isIntersect *> someSpace *> spiderSQL env)
-              <||> optional (someSpace *> isExcept *> someSpace *> spiderSQL env)
-              <||> optional (someSpace *> isUnion *> someSpace *> spiderSQL env)
+          ( (,,) <$$> try (optional (try $ someSpace *> isIntersect *> someSpace *> spiderSQL sx env))
+              <||> try (optional (try $ someSpace *> isExcept *> someSpace *> spiderSQL sx env))
+              <||> try (optional (try $ someSpace *> isUnion *> someSpace *> spiderSQL sx env))
           )
-      pure $ SpiderSQL sel fro whe grp ord hav lim int exc uni
+      case sx of
+        SUD -> pure $ SpiderSQLUD sel fro whe grp ord hav lim int exc uni
+        STC -> do
+          let typGuard x
+                | selectTyp sel == spiderSQLTyp x = pure ()
+                | otherwise = unexpected $ show sel <> " and " <> show x <> " have incompatible types"
+          for_ int typGuard
+          for_ exc typGuard
+          for_ uni typGuard
+          pure $ SpiderSQL (selectTyp sel) sel fro whe grp ord hav lim int exc uni

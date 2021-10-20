@@ -2,6 +2,14 @@ typedef string ColumnId
 
 typedef string TableId
 
+enum ColumnType {
+    BOOLEAN = 1,
+    TEXT = 2,
+    NUMBER = 3,
+    TIME = 4,
+    OTHERS = 5,
+}
+
 typedef string DBId
 
 typedef i64 Token
@@ -12,11 +20,11 @@ typedef i64 BatchId
 
 struct SQLSchema {
     1: map<ColumnId,string> columnNames,
-    2: map<TableId,string> tableNames,
-    3: map<ColumnId,TableId> columnToTable,
-    4: map<TableId,list<ColumnId>> tableToColumns,
-    5: map<ColumnId,ColumnId> foreignKeys,
-    6: map<TableId,list<TableId>> foreignKeysTables,
+    2: map<ColumnId,ColumnType> columnTypes,
+    3: map<TableId,string> tableNames,
+    4: map<ColumnId,TableId> columnToTable,
+    5: map<TableId,list<ColumnId>> tableToColumns,
+    6: map<ColumnId,ColumnId> foreignKeys,
     7: list<ColumnId> primaryKeys,
 }
 
@@ -84,6 +92,7 @@ enum Mode {
     LEXING = 1,
     PARSING_WITHOUT_GUARDS = 2,
     PARSING_WITH_GUARDS = 3,
+    PARSING_WITH_GUARDS_AND_TYPE_CHECKING = 4,
 }
 
 service Picard {
