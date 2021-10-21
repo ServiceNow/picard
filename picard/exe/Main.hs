@@ -118,29 +118,32 @@ data PartialParse m a = PartialParse !Text !(Result m a)
 
 deriving stock instance (Show (Result m a)) => Show (PartialParse m a)
 
+type Detokenize = Picard.InputIds -> IO String
+
 data PicardState = PicardState
-  { counter :: TVar Int,
-    sqlSchemas :: TVar (HashMap.HashMap Picard.DBId Picard.SQLSchema),
-    tokenizer :: TVar (Maybe Tokenizers.Tokenizer),
-    partialSpiderSQLParsesWithGuardsAndTypeChecking ::
+  { psCounter :: TVar Int,
+    psSQLSchemas :: TVar (HashMap.HashMap Picard.DBId Picard.SQLSchema),
+    psTokenizer :: TVar (Maybe Tokenizers.Tokenizer),
+    psDetokenize :: TVar (Maybe Detokenize),
+    psPartialSpiderSQLParsesWithGuardsAndTypeChecking ::
       TVar
         ( HashMap.HashMap
             Picard.InputIds
             (PartialParse (FreeT ((->) Char) []) SpiderSQLTC)
         ),
-    partialSpiderSQLParsesWithGuards ::
+    psPartialSpiderSQLParsesWithGuards ::
       TVar
         ( HashMap.HashMap
             Picard.InputIds
             (PartialParse Atto.Parser SpiderSQLUD)
         ),
-    partialSpiderSQLParsesWithoutGuards ::
+    psPartialSpiderSQLParsesWithoutGuards ::
       TVar
         ( HashMap.HashMap
             Picard.InputIds
             (PartialParse Atto.Parser SpiderSQLUD)
         ),
-    partialSpiderSQLLexes ::
+    psPartialSpiderSQLLexes ::
       TVar
         ( HashMap.HashMap
             Picard.InputIds
@@ -154,6 +157,7 @@ initPicardState =
     PicardState
       <$> newTVar 0
         <*> newTVar mempty
+        <*> newTVar Nothing
         <*> newTVar Nothing
         <*> newTVar mempty
         <*> newTVar mempty
@@ -398,21 +402,18 @@ toFeedResult' r = do
       <> show r
       <> "."
 
--- | fix me: the tokenizer referenced here may be freed and/or replaced elsewhere...
-getDecode :: TVar (Maybe Tokenizers.Tokenizer) -> IO (Picard.InputIds -> IO String)
-getDecode maybeTokenizer =
-  do
-    tok <-
-      fromMaybe
+getDetokenize :: TVar (Maybe Detokenize) -> IO Detokenize
+getDetokenize =
+  fmap
+    ( fromMaybe
         ( throw
             . Picard.FeedException
             . Picard.FeedFatalException_tokenizerNotRegisteredException
             . Picard.TokenizerNotRegisteredException
             $ "Tokenizer has not been registered."
         )
-        <$> readTVarIO maybeTokenizer
-    tokSem <- MSem.new (1 :: Int)
-    pure (\inputIds -> MSem.with tokSem (Tokenizers.decode tok $ fromIntegral <$> inputIds))
+    )
+    . readTVarIO
 
 feedIO ::
   forall m a.
@@ -421,18 +422,17 @@ feedIO ::
   TVar Int ->
   TVar (HashMap.HashMap Picard.DBId Picard.SQLSchema) ->
   (Picard.SQLSchema -> m a) ->
-  TVar (Maybe Tokenizers.Tokenizer) ->
+  Detokenize ->
   TVar (HashMap.HashMap Picard.InputIds (PartialParse m a)) ->
   Picard.InputIds ->
   Picard.Token ->
   IO Picard.FeedResult
-feedIO microSeconds counter sqlSchemas mkMainParser maybeTokenizer partialParses inputIds token =
+feedIO microSeconds counter sqlSchemas mkMainParser detokenize partialParses inputIds token =
   evalStateT
     ( runExceptT
         ( do
             _ <- liftIO . atomically $ nukeParserCacheEverySTM 10000 counter partialParses
-            decode <- liftIO . getDecode $ maybeTokenizer
-            partialParse <- getPartialParseIO decode
+            partialParse <- getPartialParseIO detokenize
             liftIO . atomically . modifyTVar partialParses $ HashMap.insert (inputIds ++ [token]) partialParse
             pure partialParse
         )
@@ -462,18 +462,18 @@ batchFeedIO ::
   TVar Int ->
   TVar (HashMap.HashMap Picard.DBId Picard.SQLSchema) ->
   (Picard.SQLSchema -> m a) ->
-  TVar (Maybe Tokenizers.Tokenizer) ->
+  Detokenize ->
   TVar (HashMap.HashMap Picard.InputIds (PartialParse m a)) ->
   [Picard.InputIds] ->
   [[Picard.Token]] ->
   IO [Picard.BatchFeedResult]
-batchFeedIO microSeconds counter sqlSchemas mkMainParser maybeTokenizer partialParses inputIds topTokens =
+batchFeedIO microSeconds counter sqlSchemas mkMainParser detokenize partialParses inputIds topTokens =
   do
     -- traverse
     -- mapPool (length inputIds)
     mapConcurrently
       ( \(batchId, inputIds', token) ->
-          feedIO microSeconds counter sqlSchemas mkMainParser maybeTokenizer partialParses inputIds' token
+          feedIO microSeconds counter sqlSchemas mkMainParser detokenize partialParses inputIds' token
             <&> Picard.BatchFeedResult batchId token
       )
       . concat
@@ -502,41 +502,47 @@ picardHandler PicardState {..} = go
     go (Picard.RegisterSQLSchema dbId sqlSchema) =
       trace ("RegisterSQLSchema " <> show dbId) $
         atomically $ do
-          r <- readTVar sqlSchemas
+          r <- readTVar psSQLSchemas
           case HashMap.lookup dbId r of
             Just _ -> throwSTM $ Picard.RegisterSQLSchemaException dbId "Database schema is already registered"
             Nothing -> do
-              modifyTVar sqlSchemas (HashMap.insert dbId sqlSchema)
-              initializeParserCacheSTM mkSpiderSQLParserWithGuardsAndTypeChecking sqlSchemas partialSpiderSQLParsesWithGuardsAndTypeChecking
-              initializeParserCacheSTM mkSpiderSQLParserWithGuards sqlSchemas partialSpiderSQLParsesWithGuards
-              initializeParserCacheSTM mkSpiderSQLParserWithoutGuards sqlSchemas partialSpiderSQLParsesWithoutGuards
-              initializeParserCacheSTM mkSpiderSQLLexer sqlSchemas partialSpiderSQLLexes
+              modifyTVar psSQLSchemas (HashMap.insert dbId sqlSchema)
+              initializeParserCacheSTM mkSpiderSQLParserWithGuardsAndTypeChecking psSQLSchemas psPartialSpiderSQLParsesWithGuardsAndTypeChecking
+              initializeParserCacheSTM mkSpiderSQLParserWithGuards psSQLSchemas psPartialSpiderSQLParsesWithGuards
+              initializeParserCacheSTM mkSpiderSQLParserWithoutGuards psSQLSchemas psPartialSpiderSQLParsesWithoutGuards
+              initializeParserCacheSTM mkSpiderSQLLexer psSQLSchemas psPartialSpiderSQLLexes
     go (Picard.RegisterTokenizer jsonConfig) =
       trace "RegisterTokenizer" $ do
         tok <- Tokenizers.createTokenizerFromJSONConfig . Text.encodeUtf8 $ jsonConfig
+        tokSem <- MSem.new (1 :: Int)
         maybeOldTokenizer <- atomically $ do
-          maybeOldTokenizer <- readTVar tokenizer
-          writeTVar tokenizer . Just $ tok
-          initializeParserCacheSTM mkSpiderSQLParserWithGuardsAndTypeChecking sqlSchemas partialSpiderSQLParsesWithGuardsAndTypeChecking
-          initializeParserCacheSTM mkSpiderSQLParserWithGuards sqlSchemas partialSpiderSQLParsesWithGuards
-          initializeParserCacheSTM mkSpiderSQLParserWithoutGuards sqlSchemas partialSpiderSQLParsesWithoutGuards
-          initializeParserCacheSTM mkSpiderSQLLexer sqlSchemas partialSpiderSQLLexes
+          maybeOldTokenizer <- readTVar psTokenizer
+          writeTVar psTokenizer . Just $ tok
+          writeTVar psDetokenize . Just $ \inputIds -> MSem.with tokSem (Tokenizers.decode tok $ fromIntegral <$> inputIds)
+          initializeParserCacheSTM mkSpiderSQLParserWithGuardsAndTypeChecking psSQLSchemas psPartialSpiderSQLParsesWithGuardsAndTypeChecking
+          initializeParserCacheSTM mkSpiderSQLParserWithGuards psSQLSchemas psPartialSpiderSQLParsesWithGuards
+          initializeParserCacheSTM mkSpiderSQLParserWithoutGuards psSQLSchemas psPartialSpiderSQLParsesWithoutGuards
+          initializeParserCacheSTM mkSpiderSQLLexer psSQLSchemas psPartialSpiderSQLLexes
           pure maybeOldTokenizer
         case maybeOldTokenizer of
           Just oldTok -> Tokenizers.freeTokenizer oldTok
           Nothing -> pure ()
     go (Picard.Feed inputIds token Picard.Mode_PARSING_WITH_GUARDS_AND_TYPE_CHECKING) =
-      trace ("Feed parsing with guards " <> show inputIds <> " " <> show token) $
-        feedIO 100000 counter sqlSchemas mkSpiderSQLParserWithGuardsAndTypeChecking tokenizer partialSpiderSQLParsesWithGuardsAndTypeChecking inputIds token
+      trace ("Feed parsing with guards " <> show inputIds <> " " <> show token) $ do
+        detokenize <- getDetokenize psDetokenize
+        feedIO 100000 psCounter psSQLSchemas mkSpiderSQLParserWithGuardsAndTypeChecking detokenize psPartialSpiderSQLParsesWithGuardsAndTypeChecking inputIds token
     go (Picard.Feed inputIds token Picard.Mode_PARSING_WITH_GUARDS) =
-      trace ("Feed parsing with guards " <> show inputIds <> " " <> show token) $
-        feedIO 100000 counter sqlSchemas mkSpiderSQLParserWithGuards tokenizer partialSpiderSQLParsesWithGuards inputIds token
+      trace ("Feed parsing with guards " <> show inputIds <> " " <> show token) $ do
+        detokenize <- getDetokenize psDetokenize
+        feedIO 100000 psCounter psSQLSchemas mkSpiderSQLParserWithGuards detokenize psPartialSpiderSQLParsesWithGuards inputIds token
     go (Picard.Feed inputIds token Picard.Mode_PARSING_WITHOUT_GUARDS) =
-      trace ("Feed parsing without guards " <> show inputIds <> " " <> show token) $
-        feedIO 100000 counter sqlSchemas mkSpiderSQLParserWithoutGuards tokenizer partialSpiderSQLParsesWithoutGuards inputIds token
+      trace ("Feed parsing without guards " <> show inputIds <> " " <> show token) $ do
+        detokenize <- getDetokenize psDetokenize
+        feedIO 100000 psCounter psSQLSchemas mkSpiderSQLParserWithoutGuards detokenize psPartialSpiderSQLParsesWithoutGuards inputIds token
     go (Picard.Feed inputIds token Picard.Mode_LEXING) =
-      trace ("Feed lexing " <> show inputIds <> " " <> show token) $
-        feedIO 100000 counter sqlSchemas mkSpiderSQLLexer tokenizer partialSpiderSQLLexes inputIds token
+      trace ("Feed lexing " <> show inputIds <> " " <> show token) $ do
+        detokenize <- getDetokenize psDetokenize
+        feedIO 100000 psCounter psSQLSchemas mkSpiderSQLLexer detokenize psPartialSpiderSQLLexes inputIds token
     go (Picard.Feed _inputIds _token (Picard.Mode__UNKNOWN n)) =
       throw
         . Picard.FeedException
@@ -544,14 +550,18 @@ picardHandler PicardState {..} = go
         . Picard.ModeException
         . Text.pack
         $ "Unknown mode " <> show n
-    go (Picard.BatchFeed inputIds topTokens Picard.Mode_PARSING_WITH_GUARDS_AND_TYPE_CHECKING) =
-      batchFeedIO 10000000 counter sqlSchemas mkSpiderSQLParserWithGuardsAndTypeChecking tokenizer partialSpiderSQLParsesWithGuardsAndTypeChecking inputIds topTokens
-    go (Picard.BatchFeed inputIds topTokens Picard.Mode_PARSING_WITH_GUARDS) =
-      batchFeedIO 10000000 counter sqlSchemas mkSpiderSQLParserWithGuards tokenizer partialSpiderSQLParsesWithGuards inputIds topTokens
-    go (Picard.BatchFeed inputIds topTokens Picard.Mode_PARSING_WITHOUT_GUARDS) =
-      batchFeedIO 10000000 counter sqlSchemas mkSpiderSQLParserWithoutGuards tokenizer partialSpiderSQLParsesWithoutGuards inputIds topTokens
-    go (Picard.BatchFeed inputIds topTokens Picard.Mode_LEXING) =
-      batchFeedIO 10000000 counter sqlSchemas mkSpiderSQLLexer tokenizer partialSpiderSQLLexes inputIds topTokens
+    go (Picard.BatchFeed inputIds topTokens Picard.Mode_PARSING_WITH_GUARDS_AND_TYPE_CHECKING) = do
+      detokenize <- getDetokenize psDetokenize
+      batchFeedIO 10000000 psCounter psSQLSchemas mkSpiderSQLParserWithGuardsAndTypeChecking detokenize psPartialSpiderSQLParsesWithGuardsAndTypeChecking inputIds topTokens
+    go (Picard.BatchFeed inputIds topTokens Picard.Mode_PARSING_WITH_GUARDS) = do
+      detokenize <- getDetokenize psDetokenize
+      batchFeedIO 10000000 psCounter psSQLSchemas mkSpiderSQLParserWithGuards detokenize psPartialSpiderSQLParsesWithGuards inputIds topTokens
+    go (Picard.BatchFeed inputIds topTokens Picard.Mode_PARSING_WITHOUT_GUARDS) = do
+      detokenize <- getDetokenize psDetokenize
+      batchFeedIO 10000000 psCounter psSQLSchemas mkSpiderSQLParserWithoutGuards detokenize psPartialSpiderSQLParsesWithoutGuards inputIds topTokens
+    go (Picard.BatchFeed inputIds topTokens Picard.Mode_LEXING) = do
+      detokenize <- getDetokenize psDetokenize
+      batchFeedIO 10000000 psCounter psSQLSchemas mkSpiderSQLLexer detokenize psPartialSpiderSQLLexes inputIds topTokens
     go (Picard.BatchFeed _inputIds _token (Picard.Mode__UNKNOWN n)) =
       throw
         . Picard.FeedException
