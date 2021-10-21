@@ -67,7 +67,7 @@ def expected_max_input_ids_len(data_args: DataArguments, split: str, schema_seri
         elif _data_args.dataset == "spider" and split == "eval" and not schema_serialization_with_db_content:
             return 468
         elif _data_args.dataset == "cosql" and split == "train" and schema_serialization_with_db_content:
-            return 2229
+            return 2225
         elif _data_args.dataset == "cosql" and split == "train" and not schema_serialization_with_db_content:
             return 1984
         elif _data_args.dataset == "cosql" and split == "eval" and schema_serialization_with_db_content:
