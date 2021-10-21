@@ -283,9 +283,9 @@ pattern ColUnitUD at tidOrAlias cid <-
 
 pattern DistinctColUnitUD :: Maybe AggType -> Maybe (Either TableId Alias) -> ColumnIdUD -> ColUnitUD
 pattern DistinctColUnitUD at tidOrAlias cid <-
-  ColUnit _ at tidOrAlias cid
+  DistinctColUnit _ at tidOrAlias cid
   where
-    DistinctColUnitUD at tidOrAlias cid = ColUnit () at tidOrAlias cid
+    DistinctColUnitUD at tidOrAlias cid = DistinctColUnit () at tidOrAlias cid
 
 type ColUnitUD = ColUnit 'UD
 

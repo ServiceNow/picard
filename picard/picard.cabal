@@ -1,9 +1,15 @@
 cabal-version: 2.0
 
-name:           picard
-version:        0.2
-synopsis:       PICARD - Parsing Incrementally for Constrained Auto-Regressive Decoding from Language Models
-build-type:     Simple
+name: picard
+version: 0.3
+synopsis: PICARD - Parsing Incrementally for Constrained Auto-Regressive Decoding from Language Models
+build-type: Custom
+
+custom-setup
+  setup-depends:
+      base >= 4 && <5
+    , Cabal
+    , cabal-doctest >= 1 && <1.1
 
 library
   exposed-modules:
@@ -89,37 +95,21 @@ executable picard
     , yoctoparsec
   default-language: Haskell2010
 
-test-suite picard-doctest
+test-suite doctests
   type: exitcode-stdio-1.0
-  main-is: Doctest.hs
-  hs-source-dirs:
-      test
-  default-extensions: DeriveDataTypeable ExistentialQuantification FlexibleInstances KindSignatures LambdaCase MagicHash RankNTypes RecordWildCards ScopedTypeVariables TypeSynonymInstances DataKinds DeriveGeneric DerivingStrategies DeriveAnyClass DerivingVia GeneralizedNewtypeDeriving FlexibleContexts TypeApplications ConstraintKinds MultiParamTypeClasses TupleSections
-  ghc-options: -W -Wall -threaded -rtsopts -with-rtsopts=-N
+  main-is: doctests.hs
   build-depends:
-      Glob
-    , attoparsec
-    , base
-    , containers
-    , doctest
-    , free
-    , ghc >=8.10.4 && <8.11
-    , mtl
-    , parsers
+      base
+    , base-compat
+    , doctest >=0.15 && <0.18
     , picard
-    , picard-gen-hs
-    , text
-    , fb-util
-    , thrift-cpp-channel
-    , thrift-lib
-    , thrift-server
-    , trifecta
-    , unordered-containers
-    , vector
-    , yoctoparsec
+
+  ghc-options: -Wall -threaded
+  hs-source-dirs: tests
   default-language: Haskell2010
 
-test-suite picard-test
+test-suite spec
+  x-doctest-components: lib exe:picard
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
@@ -141,7 +131,7 @@ test-suite picard-test
       Language.SQL.SpiderSQL.StormRecord
       Language.SQL.SpiderSQL.TestItem
   hs-source-dirs:
-      test
+      tests
   default-extensions: DeriveDataTypeable ExistentialQuantification FlexibleInstances KindSignatures LambdaCase MagicHash RankNTypes RecordWildCards ScopedTypeVariables TypeSynonymInstances DataKinds DeriveGeneric DerivingStrategies DeriveAnyClass DerivingVia GeneralizedNewtypeDeriving FlexibleContexts TypeApplications ConstraintKinds MultiParamTypeClasses TupleSections
   ghc-options: -W -Wall
   build-depends:
