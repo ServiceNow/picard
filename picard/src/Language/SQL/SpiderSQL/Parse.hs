@@ -34,23 +34,23 @@ import Text.Parser.Token (TokenParsing (..))
 -- $setup
 -- >>> :set -XOverloadedStrings
 -- >>> import qualified Data.Attoparsec.Text as Atto (parse, parseOnly, endOfInput, string, char)
--- >>> import Picard.Types (SQLSchema)
+-- >>> import Picard.Types (SQLSchema (..))
 -- >>> import Control.Monad.Reader (runReader, runReaderT)
 -- >>> import Control.Monad.Trans (MonadTrans (lift))
 -- >>> import qualified Data.HashMap.Strict as HashMap
 -- >>> columnNames = HashMap.fromList [("1", "Singer_ID"), ("2", "Name"), ("3", "Birth_Year"), ("4", "Net_Worth_Millions"), ("5", "Citizenship"), ("6", "Song_ID"), ("7", "Title"), ("8", "Singer_ID"), ("9", "Sales"), ("10", "Highest_Position")] :: HashMap.HashMap Text.Text Text.Text
+-- >>> columnTypes = HashMap.fromList []
 -- >>> tableNames = HashMap.fromList [("0", "singer"), ("1", "song")] :: HashMap.HashMap Text.Text Text.Text
 -- >>> columnToTable = HashMap.fromList [("1", "0"), ("2", "0"), ("3", "0"), ("4", "0"), ("5", "0"), ("6", "1"), ("7", "1"), ("8", "1"), ("9", "1"), ("10", "1")] :: HashMap.HashMap Text.Text Text.Text
 -- >>> tableToColumns = HashMap.fromList [("0", ["1", "2", "3", "4", "5"]), ("1", ["6", "7", "8", "9", "10"])] :: HashMap.HashMap Text.Text [Text.Text]
 -- >>> foreignKeys = HashMap.fromList [("8", "1")] :: HashMap.HashMap Text.Text Text.Text
--- >>> foreignKeysTables = HashMap.fromList [("1", ["0"])] :: HashMap.HashMap Text.Text [Text.Text]
 -- >>> primaryKeys = ["1", "6"] :: [Text.Text]
--- >>> sqlSchema = SQLSchema { sQLSchema_columnNames = columnNames, sQLSchema_tableNames = tableNames, sQLSchema_columnToTable = columnToTable, sQLSchema_tableToColumns = tableToColumns, sQLSchema_foreignKeys = foreignKeys, sQLSchema_foreignKeysTables = foreignKeysTables, sQLSchema_primaryKeys = primaryKeys }
--- >>> parserEnv = ParserEnv (ParserEnvWithGuards withGuards) sqlSchema
--- >>> testParse = Atto.parse . flip runReaderT parserEnv . flip evalStateT mkParserState
--- >>> testParseOnly p = (Atto.parseOnly . flip runReaderT parserEnv . flip evalStateT mkParserState) (p <* (lift . lift) Atto.endOfInput)
--- >>> spiderSQLTestParse = (Atto.parse . flip runReaderT parserEnv) (spiderSQL mkParserState)
--- >>> spiderSQLTestParseOnly = (Atto.parseOnly . flip runReaderT parserEnv) (spiderSQL mkParserState <* lift Atto.endOfInput)
+-- >>> sqlSchema = SQLSchema {sQLSchema_columnNames = columnNames, sQLSchema_columnTypes = columnTypes, sQLSchema_tableNames = tableNames, sQLSchema_columnToTable = columnToTable, sQLSchema_tableToColumns = tableToColumns, sQLSchema_foreignKeys = foreignKeys, sQLSchema_primaryKeys = primaryKeys}
+-- >>> parserEnv = ParserEnv (ParserEnvWithGuards (withGuards SUD)) sqlSchema
+-- >>> testParse = Atto.parse . flip runReaderT parserEnv . flip evalStateT mkParserStateUD
+-- >>> testParseOnly p = (Atto.parseOnly . flip runReaderT parserEnv . flip evalStateT mkParserStateUD) (p <* (lift . lift) Atto.endOfInput)
+-- >>> spiderSQLTestParse = (Atto.parse . flip runReaderT parserEnv) (spiderSQL SUD mkParserStateUD)
+-- >>> spiderSQLTestParseOnly = (Atto.parseOnly . flip runReaderT parserEnv) (spiderSQL SUD mkParserStateUD <* lift Atto.endOfInput)
 
 -- | ParserState
 --
@@ -148,17 +148,17 @@ betweenOptionalParentheses p = try (betweenParentheses p) <|> try p
 
 -- | 'Select' parser
 --
--- >>> testParseOnly select "select *"
--- Right (Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))])
+-- >>> testParseOnly (select SUD) "select *"
+-- Right (Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))])
 --
--- >>> testParseOnly select "select count singer.*"
--- Right (Select [Agg (Just Count) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Left (TableId {tableName = "singer"})), colUnitColId = Star}}))])
+-- >>> testParseOnly (select SUD) "select count singer.*"
+-- Right (Select () [Agg () (Just Count) (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Left (TableId {tableName = "singer"})), colUnitColId = Star}}))])
 --
--- >>> testParseOnly select "SELECT COUNT (DISTINCT song.Title)"
--- Right (Select [Agg (Just Count) (Column (ValColUnit {columnValue = DistinctColUnit {distinctColUnitAggId = Nothing, distinctColUnitTable = Just (Left (TableId {tableName = "song"})), distinctColUnitColdId = ColumnId {columnName = "Title"}}}))])
+-- >>> testParseOnly (select SUD) "SELECT COUNT (DISTINCT song.Title)"
+-- Right (Select () [Agg () (Just Count) (Column () (ValColUnit {columnX = (), columnValue = DistinctColUnit {distinctColUnitX = (), distinctColUnitAggId = Nothing, distinctColUnitTable = Just (Left (TableId {tableName = "song"})), distinctColUnitColdId = ColumnId {columnIdX = (), columnName = "Title"}}}))])
 --
--- >>> testParseOnly select "SELECT COUNT (DISTINCT T1.Title)"
--- Right (Select [Agg (Just Count) (Column (ValColUnit {columnValue = DistinctColUnit {distinctColUnitAggId = Nothing, distinctColUnitTable = Just (Right (Alias {aliasName = "T1"})), distinctColUnitColdId = ColumnId {columnName = "Title"}}}))])
+-- >>> testParseOnly (select SUD) "SELECT COUNT (DISTINCT T1.Title)"
+-- Right (Select () [Agg () (Just Count) (Column () (ValColUnit {columnX = (), columnValue = DistinctColUnit {distinctColUnitX = (), distinctColUnitAggId = Nothing, distinctColUnitTable = Just (Right (Alias {aliasName = "T1"})), distinctColUnitColdId = ColumnId {columnIdX = (), columnName = "Title"}}}))])
 select :: forall x m. (TokenParsing m, MonadSQL x m) => SX x -> m (Select x)
 select sx = flip (<?>) "select" $ do
   _ <- isSelect
@@ -177,20 +177,20 @@ select sx = flip (<?>) "select" $ do
 
 -- | 'Agg' parser.
 --
--- >>> testParseOnly agg "singer.Singer_ID"
--- Right (Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Left (TableId {tableName = "singer"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})))
+-- >>> testParseOnly (agg SUD) "singer.Singer_ID"
+-- Right (Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Left (TableId {tableName = "singer"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})))
 --
--- >>> testParseOnly agg "count *"
--- Right (Agg (Just Count) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}})))
+-- >>> testParseOnly (agg SUD) "count *"
+-- Right (Agg () (Just Count) (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}})))
 --
--- >>> testParseOnly agg "count (*)"
--- Right (Agg (Just Count) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}})))
+-- >>> testParseOnly (agg SUD) "count (*)"
+-- Right (Agg () (Just Count) (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}})))
 --
--- >>> testParseOnly agg "count(*)"
--- Right (Agg (Just Count) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}})))
+-- >>> testParseOnly (agg SUD) "count(*)"
+-- Right (Agg () (Just Count) (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}})))
 --
--- >>> testParseOnly agg "count singer.Singer_ID"
--- Right (Agg (Just Count) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Left (TableId {tableName = "singer"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})))
+-- >>> testParseOnly (agg SUD) "count singer.Singer_ID"
+-- Right (Agg () (Just Count) (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Left (TableId {tableName = "singer"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})))
 agg :: forall x m. (TokenParsing m, MonadSQL x m) => SX x -> m (Agg x)
 agg sx =
   flip (<?>) "agg" $ do
@@ -231,14 +231,14 @@ aggType = flip (<?>) "aggType" $ choice choices
 
 -- | 'ValUnit' parser.
 --
--- >>> testParseOnly valUnit "t1.Singer_ID"
--- Right (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}}))
+-- >>> testParseOnly (valUnit SUD) "t1.Singer_ID"
+-- Right (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}}))
 --
--- >>> testParseOnly valUnit "t2.Sales / t1.Net_Worth_Millions"
--- Right (Divide (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Sales"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Net_Worth_Millions"}}}))
+-- >>> testParseOnly (valUnit SUD) "t2.Sales / t1.Net_Worth_Millions"
+-- Right (Divide () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Sales"}}}) (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Net_Worth_Millions"}}}))
 --
--- >>> testParseOnly valUnit "t2.Sales / 4"
--- Right (Divide (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Sales"}}}) (Number {numberValue = 4.0}))
+-- >>> testParseOnly (valUnit SUD) "t2.Sales / 4"
+-- Right (Divide () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Sales"}}}) (Number {numberValue = 4.0}))
 valUnit :: forall x m. (TokenParsing m, MonadSQL x m) => SX x -> m (ValUnit x)
 valUnit sx =
   flip (<?>) "valUnit" $ do
@@ -295,44 +295,44 @@ valUnit sx =
 
 -- | 'ColUnit' parser.
 --
--- >>> testParseOnly colUnit "*"
--- Right (ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star})
+-- >>> testParseOnly (colUnit SUD) "*"
+-- Right (ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star})
 --
--- >>> testParseOnly colUnit "Singer_ID"
--- Right (ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Singer_ID"}})
+-- >>> testParseOnly (colUnit SUD) "Singer_ID"
+-- Right (ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}})
 --
--- >>> testParseOnly colUnit "distinct Singer_ID"
--- Right (DistinctColUnit {distinctColUnitAggId = Nothing, distinctColUnitTable = Nothing, distinctColUnitColdId = ColumnId {columnName = "Singer_ID"}})
+-- >>> testParseOnly (colUnit SUD) "distinct Singer_ID"
+-- Right (DistinctColUnit {distinctColUnitX = (), distinctColUnitAggId = Nothing, distinctColUnitTable = Nothing, distinctColUnitColdId = ColumnId {columnIdX = (), columnName = "Singer_ID"}})
 --
--- >>> testParseOnly colUnit "t1.Singer_ID"
--- Right (ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Singer_ID"}})
+-- >>> testParseOnly (colUnit SUD) "t1.Singer_ID"
+-- Right (ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}})
 --
--- >>> testParseOnly colUnit "count *"
--- Right (ColUnit {colUnitAggId = Just Count, colUnitTable = Nothing, colUnitColId = Star})
+-- >>> testParseOnly (colUnit SUD) "count *"
+-- Right (ColUnit {colUnitX = (), colUnitAggId = Just Count, colUnitTable = Nothing, colUnitColId = Star})
 --
--- >>> testParseOnly colUnit "count (*)"
--- Right (ColUnit {colUnitAggId = Just Count, colUnitTable = Nothing, colUnitColId = Star})
+-- >>> testParseOnly (colUnit SUD) "count (*)"
+-- Right (ColUnit {colUnitX = (), colUnitAggId = Just Count, colUnitTable = Nothing, colUnitColId = Star})
 --
--- >>> testParseOnly colUnit "count(*)"
--- Right (ColUnit {colUnitAggId = Just Count, colUnitTable = Nothing, colUnitColId = Star})
+-- >>> testParseOnly (colUnit SUD) "count(*)"
+-- Right (ColUnit {colUnitX = (), colUnitAggId = Just Count, colUnitTable = Nothing, colUnitColId = Star})
 --
--- >>> testParseOnly colUnit "count ( * )"
--- Right (ColUnit {colUnitAggId = Just Count, colUnitTable = Nothing, colUnitColId = Star})
+-- >>> testParseOnly (colUnit SUD) "count ( * )"
+-- Right (ColUnit {colUnitX = (), colUnitAggId = Just Count, colUnitTable = Nothing, colUnitColId = Star})
 --
--- >>> testParseOnly colUnit "count t1.Singer_ID"
--- Right (ColUnit {colUnitAggId = Just Count, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Singer_ID"}})
+-- >>> testParseOnly (colUnit SUD) "count t1.Singer_ID"
+-- Right (ColUnit {colUnitX = (), colUnitAggId = Just Count, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}})
 --
--- >>> testParseOnly colUnit "count distinct t1.*"
--- Right (DistinctColUnit {distinctColUnitAggId = Just Count, distinctColUnitTable = Just (Right (Alias {aliasName = "T1"})), distinctColUnitColdId = Star})
+-- >>> testParseOnly (colUnit SUD) "count distinct t1.*"
+-- Right (DistinctColUnit {distinctColUnitX = (), distinctColUnitAggId = Just Count, distinctColUnitTable = Just (Right (Alias {aliasName = "T1"})), distinctColUnitColdId = Star})
 --
--- >>> testParseOnly colUnit "count (distinct t1.*)"
--- Right (DistinctColUnit {distinctColUnitAggId = Just Count, distinctColUnitTable = Just (Right (Alias {aliasName = "T1"})), distinctColUnitColdId = Star})
+-- >>> testParseOnly (colUnit SUD) "count (distinct t1.*)"
+-- Right (DistinctColUnit {distinctColUnitX = (), distinctColUnitAggId = Just Count, distinctColUnitTable = Just (Right (Alias {aliasName = "T1"})), distinctColUnitColdId = Star})
 --
--- >>> testParseOnly colUnit "count(distinct t1.*)"
--- Right (DistinctColUnit {distinctColUnitAggId = Just Count, distinctColUnitTable = Just (Right (Alias {aliasName = "T1"})), distinctColUnitColdId = Star})
+-- >>> testParseOnly (colUnit SUD) "count(distinct t1.*)"
+-- Right (DistinctColUnit {distinctColUnitX = (), distinctColUnitAggId = Just Count, distinctColUnitTable = Just (Right (Alias {aliasName = "T1"})), distinctColUnitColdId = Star})
 --
--- >>> (Atto.parseOnly . flip runReaderT (ParserEnv (ParserEnvWithGuards withGuards) sqlSchema { sQLSchema_columnNames = HashMap.union (sQLSchema_columnNames sqlSchema) (HashMap.singleton "11" "country") }) . flip evalStateT mkParserState) colUnit "country"
--- Right (ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "country"}})
+-- >>> (Atto.parseOnly . flip runReaderT (ParserEnv (ParserEnvWithGuards (withGuards SUD)) sqlSchema { sQLSchema_columnNames = HashMap.union (sQLSchema_columnNames sqlSchema) (HashMap.singleton "11" "country") }) . flip evalStateT mkParserStateUD) (colUnit SUD) "country"
+-- Right (ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "country"}})
 colUnit ::
   forall x m.
   ( TokenParsing m,
@@ -414,14 +414,14 @@ colUnit sx = flip (<?>) "colUnit" $ do
 
 -- | @inTable sqlSchema colId tabId@ checks if the 'ColumnId' @colId@ is valid for the table with the 'TableId' @tabId@ in the SQLSchema @sqlSchema@.
 --
--- >>> inTable sqlSchema (ColumnId "Singer_ID") (TableId "song")
--- True
+-- >>> flip testParse mempty $ inTable SUD sqlSchema (ColumnId () "Singer_ID") (TableId "song")
+-- Done "" True
 --
--- >>> inTable sqlSchema (ColumnId "singer_id") (TableId "song")
--- True
+-- >>> flip testParse mempty $ inTable SUD sqlSchema (ColumnId () "singer_id") (TableId "song")
+-- Done "" True
 --
--- >>> inTable sqlSchema (ColumnId "Citizenship") (TableId "song")
--- False
+-- >>> flip testParse mempty $ inTable SUD sqlSchema (ColumnId () "Citizenship") (TableId "song")
+-- Done "" False
 inTable :: forall x m. (Parsing m, Monad m) => SX x -> Picard.Types.SQLSchema -> ColumnId x -> TableId -> m Bool
 inTable _ _ Star _ = pure True
 inTable sx Picard.Types.SQLSchema {..} ColumnId {..} TableId {..} =
@@ -451,7 +451,7 @@ inTable sx Picard.Types.SQLSchema {..} ColumnId {..} TableId {..} =
             <$> columnUIds
    in (Text.pack tableName `elem`) <$> matchingTableNames
 
--- | @inSelect sqlSchema colId sel@ checks if the 'ColumnId' @colId@ is part of the 'Select' clause @sel@ in the SQLSchema @sqlSchema@.
+-- | @inSelect SUD colId sel@ checks if the 'ColumnId' @colId@ is part of the 'Select' clause @sel@.
 inSelect :: forall x. SX x -> ColumnId x -> Select x -> Bool
 inSelect _ Star _ = True
 inSelect sx c s =
@@ -662,9 +662,9 @@ withGuards sx sqlSchema p = do
 -- Right (TableId {tableName = "singer"})
 --
 -- >>> testParseOnly tableId "sanger"
--- Left "tableId: satisfyElem"
+-- Left "tableId: Failed reading: mzero"
 --
--- >>> (Atto.parseOnly . flip runReaderT (ParserEnv (ParserEnvWithGuards withGuards) sqlSchema { sQLSchema_tableNames = HashMap.union (sQLSchema_tableNames sqlSchema) (HashMap.singleton "2" "singers") }) . flip evalStateT mkParserState) (tableId <* (lift . lift) Atto.endOfInput) "singers"
+-- >>> (Atto.parseOnly . flip runReaderT (ParserEnv (ParserEnvWithGuards (withGuards SUD)) sqlSchema { sQLSchema_tableNames = HashMap.union (sQLSchema_tableNames sqlSchema) (HashMap.singleton "2" "singers") }) . flip evalStateT mkParserStateUD) (tableId <* (lift . lift) Atto.endOfInput) "singers"
 -- Right (TableId {tableName = "singers"})
 tableId :: forall x m. (CharParsing m, MonadReader (ParserEnv x) m, MonadPlus m) => m TableId
 tableId =
@@ -705,17 +705,17 @@ alias' = flip (<?>) "alias" $ do
 
 -- | 'ColumnId' parser.
 --
--- >>> testParseOnly columnId "*"
+-- >>> testParseOnly (columnId SUD) "*"
 -- Right Star
 --
--- >>> testParseOnly columnId "invalid_column"
--- Left "columnId: satisfyElem"
+-- >>> testParseOnly (columnId SUD) "invalid_column"
+-- Left "columnId: Failed reading: mzero"
 --
--- >>> testParseOnly columnId "Birth_Year"
--- Right (ColumnId {columnName = "Birth_Year"})
+-- >>> testParseOnly (columnId SUD) "Birth_Year"
+-- Right (ColumnId {columnIdX = (), columnName = "Birth_Year"})
 --
--- >>> testParseOnly columnId "birth_year"
--- Right (ColumnId {columnName = "Birth_Year"})
+-- >>> testParseOnly (columnId SUD) "birth_year"
+-- Right (ColumnId {columnIdX = (), columnName = "Birth_Year"})
 columnId :: forall x m. (CharParsing m, MonadReader (ParserEnv x) m, MonadPlus m) => SX x -> m (ColumnId x)
 columnId sx =
   let terminate q = q <* notFollowedBy (try alphaNum <|> try (char '_'))
@@ -731,11 +731,11 @@ columnId sx =
 
 -- | 'From' parser.
 --
--- >>> testParseOnly from "FROM singer"
+-- >>> testParseOnly (from SUD) "FROM singer"
 -- Right (From {fromTableUnits = [Table (TableId {tableName = "singer"}) Nothing], fromCond = Nothing})
 --
--- >>> testParseOnly from "FROM singer AS T1 JOIN song AS T2 ON T1.Singer_ID = T2.Singer_ID"
--- Right (From {fromTableUnits = [Table (TableId {tableName = "singer"}) (Just (Alias {aliasName = "T1"})),Table (TableId {tableName = "song"}) (Just (Alias {aliasName = "T2"}))], fromCond = Just (Eq (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})))})
+-- >>> testParseOnly (from SUD) "FROM singer AS T1 JOIN song AS T2 ON T1.Singer_ID = T2.Singer_ID"
+-- Right (From {fromTableUnits = [Table (TableId {tableName = "singer"}) (Just (Alias {aliasName = "T1"})),Table (TableId {tableName = "song"}) (Just (Alias {aliasName = "T2"}))], fromCond = Just (Eq (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})) (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})))})
 from ::
   forall x m.
   ( TokenParsing m,
@@ -902,14 +902,14 @@ updateTables sx (Right s) = do
 
 -- | 'TableUnit' parser.
 --
--- >>> testParseOnly tableUnit "song as t1"
+-- >>> testParseOnly (tableUnit SUD) "song as t1"
 -- Right (Table (TableId {tableName = "song"}) (Just (Alias {aliasName = "T1"})))
 --
--- >>> testParseOnly tableUnit "(SELECT * FROM song)"
--- Right (TableUnitSQL (SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}) Nothing)
+-- >>> testParseOnly (tableUnit SUD) "(SELECT * FROM song)"
+-- Right (TableUnitSQL (SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}) Nothing)
 --
--- >>> testParseOnly tableUnit "(SELECT * FROM song) as t1"
--- Right (TableUnitSQL (SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}) (Just (Alias {aliasName = "T1"})))
+-- >>> testParseOnly (tableUnit SUD) "(SELECT * FROM song) as t1"
+-- Right (TableUnitSQL (SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}) (Just (Alias {aliasName = "T1"})))
 tableUnit ::
   forall x m.
   ( TokenParsing m,
@@ -941,35 +941,35 @@ tableUnit sx =
 
 -- | 'Cond' parser.
 --
--- >>> testParseOnly cond "t1.Singer_ID = t2.Singer_ID"
--- Right (Eq (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})))
+-- >>> testParseOnly (cond SUD) "t1.Singer_ID = t2.Singer_ID"
+-- Right (Eq (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})) (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})))
 --
--- >>> testParseOnly cond "t1.Singer_ID + t2.Singer_ID = t2.Singer_ID"
--- Right (Eq (Plus (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})))
+-- >>> testParseOnly (cond SUD) "t1.Singer_ID + t2.Singer_ID = t2.Singer_ID"
+-- Right (Eq (Plus () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}}) (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})) (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})))
 --
--- >>> testParseOnly cond "t1.Singer_ID = t2.Singer_ID + t2.Singer_ID"
--- Right (Eq (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})) (Plus (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})))
+-- >>> testParseOnly (cond SUD) "t1.Singer_ID = t2.Singer_ID + t2.Singer_ID"
+-- Right (Eq (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})) (Plus () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}}) (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})))
 --
--- >>> testParseOnly cond "t2.Name = \"Adele\" AND t3.Name = \"Beyoncé\""
--- Right (And (Eq (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Name"}}})) (Column (ValString {stringValue = "Adele"}))) (Eq (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T3"})), colUnitColId = ColumnId {columnName = "Name"}}})) (Column (ValString {stringValue = "Beyonc\233"}))))
+-- >>> testParseOnly (cond SUD) "t2.Name = \"Adele\" AND t3.Name = \"Beyoncé\""
+-- Right (And (Eq (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Name"}}})) (Column () (ValString {stringValue = "Adele"}))) (Eq (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T3"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Name"}}})) (Column () (ValString {stringValue = "Beyonc\233"}))))
 --
--- >>> testParseOnly cond "song_id IN (SELECT song_id FROM song)"
--- Right (In (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}})) (Column (ValSQL {sqlValue = SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}})))
+-- >>> testParseOnly (cond SUD) "song_id IN (SELECT song_id FROM song)"
+-- Right (In (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}})) (Column () (ValSQL {sqlValueX = (), sqlValue = SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}})))
 --
--- >>> testParseOnly cond "song_id NOT IN (SELECT song_id FROM song)"
--- Right (Not (In (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}})) (Column (ValSQL {sqlValue = SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}}))))
+-- >>> testParseOnly (cond SUD) "song_id NOT IN (SELECT song_id FROM song)"
+-- Right (Not (In (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}})) (Column () (ValSQL {sqlValueX = (), sqlValue = SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}}))))
 --
--- >>> testParseOnly cond "t1.Singer_ID - t2.Singer_ID = (select song_id - song_id from song order by song_id - song_id desc)"
--- Right (Eq (Minus (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})) (Column (ValSQL {sqlValue = SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Minus (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Just (OrderBy [(Minus (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}),Desc)]), spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}})))
+-- >>> testParseOnly (cond SUD) "t1.Singer_ID - t2.Singer_ID = (select song_id - song_id from song order by song_id - song_id desc)"
+-- Right (Eq (Minus () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}}) (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})) (Column () (ValSQL {sqlValueX = (), sqlValue = SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Minus () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}) (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Just (OrderBy [(Minus () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}) (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}),Desc)]), spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}})))
 --
--- >>> testParseOnly cond "t1.Singer_ID - t2.Singer_ID = (select song_id - song_id from song order by (song_id - song_id) desc)"
--- Right (Eq (Minus (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})) (Column (ValSQL {sqlValue = SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Minus (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Just (OrderBy [(Minus (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}),Desc)]), spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}})))
+-- >>> testParseOnly (cond SUD) "t1.Singer_ID - t2.Singer_ID = (select song_id - song_id from song order by (song_id - song_id) desc)"
+-- Right (Eq (Minus () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}}) (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})) (Column () (ValSQL {sqlValueX = (), sqlValue = SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Minus () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}) (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Just (OrderBy [(Minus () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}) (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}),Desc)]), spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}})))
 --
--- >>> testParseOnly cond "t1.Singer_ID - t2.Singer_ID = (select (song_id - song_id) from song order by (song_id - song_id) desc)"
--- Right (Eq (Minus (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})) (Column (ValSQL {sqlValue = SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Minus (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Just (OrderBy [(Minus (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}),Desc)]), spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}})))
+-- >>> testParseOnly (cond SUD) "t1.Singer_ID - t2.Singer_ID = (select (song_id - song_id) from song order by (song_id - song_id) desc)"
+-- Right (Eq (Minus () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}}) (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})) (Column () (ValSQL {sqlValueX = (), sqlValue = SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Minus () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}) (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Just (OrderBy [(Minus () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}) (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}),Desc)]), spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}})))
 --
--- >>> testParseOnly cond "(t1.Singer_ID - t2.Singer_ID) = (select (song_id - song_id) from song order by (song_id - song_id) desc)"
--- Right (Eq (Minus (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})) (Column (ValSQL {sqlValue = SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Minus (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Just (OrderBy [(Minus (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}) (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}),Desc)]), spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}})))
+-- >>> testParseOnly (cond SUD) "(t1.Singer_ID - t2.Singer_ID) = (select (song_id - song_id) from song order by (song_id - song_id) desc)"
+-- Right (Eq (Minus () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}}) (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})) (Column () (ValSQL {sqlValueX = (), sqlValue = SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Minus () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}) (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Just (OrderBy [(Minus () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}) (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}),Desc)]), spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}})))
 cond :: forall x m. (TokenParsing m, MonadSQL x m) => SX x -> m (Cond x)
 cond sx =
   flip (<?>) "cond" $
@@ -1045,17 +1045,17 @@ cond sx =
 
 -- | 'Val' parser.
 --
--- >>> testParseOnly val "count song.Song_ID"
--- Right (ValColUnit {columnValue = ColUnit {colUnitAggId = Just Count, colUnitTable = Just (Left (TableId {tableName = "song"})), colUnitColId = ColumnId {columnName = "Song_ID"}}})
+-- >>> testParseOnly (val SUD) "count song.Song_ID"
+-- Right (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Just Count, colUnitTable = Just (Left (TableId {tableName = "song"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}})
 --
--- >>> testParseOnly val "count(song.Song_ID)"
--- Right (ValColUnit {columnValue = ColUnit {colUnitAggId = Just Count, colUnitTable = Just (Left (TableId {tableName = "song"})), colUnitColId = ColumnId {columnName = "Song_ID"}}})
+-- >>> testParseOnly (val SUD) "count(song.Song_ID)"
+-- Right (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Just Count, colUnitTable = Just (Left (TableId {tableName = "song"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}})
 --
--- >>> testParseOnly val "(select *)"
--- Right (ValSQL {sqlValue = SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}})
+-- >>> testParseOnly (val SUD) "(select *)"
+-- Right (ValSQL {sqlValueX = (), sqlValue = SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}})
 --
--- >>> testParseOnly val "(select song_id from song)"
--- Right (ValSQL {sqlValue = SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}})
+-- >>> testParseOnly (val SUD) "(select song_id from song)"
+-- Right (ValSQL {sqlValueX = (), sqlValue = SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}})
 val ::
   forall x m.
   ( TokenParsing m,
@@ -1078,24 +1078,24 @@ val sx = flip (<?>) "val" $ choice choices
 
 -- | Parser for WHERE clauses.
 --
--- >>> testParseOnly whereCond "where t1.Singer_ID = t2.Singer_ID"
--- Right (Eq (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})))
+-- >>> testParseOnly (whereCond SUD) "where t1.Singer_ID = t2.Singer_ID"
+-- Right (Eq (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})) (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})))
 --
--- >>> testParseOnly whereCond "where Singer_ID = 1"
--- Right (Eq (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Singer_ID"}}})) (Column (Number {numberValue = 1.0})))
+-- >>> testParseOnly (whereCond SUD) "where Singer_ID = 1"
+-- Right (Eq (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})) (Column () (Number {numberValue = 1.0})))
 whereCond :: forall x m. (TokenParsing m, MonadSQL x m) => SX x -> m (Cond x)
 whereCond sx = flip (<?>) "whereCond" $ isWhere *> someSpace *> cond sx
 
 -- | Parser for group-by clauses.
 --
--- >>> testParseOnly groupBy "group by t1.Song_ID"
--- Right [ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Song_ID"}}]
+-- >>> testParseOnly (groupBy SUD) "group by t1.Song_ID"
+-- Right [ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}]
 --
--- >>> testParseOnly groupBy "group by t1.Song_ID, t2.Singer_ID"
--- Right [ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Song_ID"}},ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}]
+-- >>> testParseOnly (groupBy SUD) "group by t1.Song_ID, t2.Singer_ID"
+-- Right [ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}},ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}]
 --
--- >>> testParseOnly groupBy "group by count t1.Song_ID, t2.Singer_ID"
--- Right [ColUnit {colUnitAggId = Just Count, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Song_ID"}},ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}]
+-- >>> testParseOnly (groupBy SUD) "group by count t1.Song_ID, t2.Singer_ID"
+-- Right [ColUnit {colUnitX = (), colUnitAggId = Just Count, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}},ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}]
 groupBy ::
   forall x m.
   ( TokenParsing m,
@@ -1111,17 +1111,17 @@ groupBy sx =
 
 -- | 'OrderBy' Parser.
 --
--- >>> testParseOnly orderBy "order by t1.Song_ID, t2.Singer_ID desc"
--- Right (OrderBy [(Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Song_ID"}}}),Asc),(Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}}),Desc)])
+-- >>> testParseOnly (orderBy SUD) "order by t1.Song_ID, t2.Singer_ID desc"
+-- Right (OrderBy [(Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}),Asc),(Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}}),Desc)])
 --
--- >>> testParseOnly orderBy "order by t1.Song_ID asc, t2.Singer_ID desc"
--- Right (OrderBy [(Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Song_ID"}}}),Asc),(Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}}),Desc)])
+-- >>> testParseOnly (orderBy SUD) "order by t1.Song_ID asc, t2.Singer_ID desc"
+-- Right (OrderBy [(Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}),Asc),(Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}}),Desc)])
 --
--- >>> testParseOnly orderBy "order by count(t1.Song_ID) desc"
--- Right (OrderBy [(Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Just Count, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Song_ID"}}}),Desc)])
+-- >>> testParseOnly (orderBy SUD) "order by count(t1.Song_ID) desc"
+-- Right (OrderBy [(Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Just Count, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}),Desc)])
 --
--- >>> testParseOnly orderBy "order by sum(t1.Song_ID)"
--- Right (OrderBy [(Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Just Sum, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Song_ID"}}}),Asc)])
+-- >>> testParseOnly (orderBy SUD) "order by sum(t1.Song_ID)"
+-- Right (OrderBy [(Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Just Sum, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}),Asc)])
 orderBy :: forall x m. (TokenParsing m, MonadSQL x m) => SX x -> m (OrderBy x)
 orderBy sx = flip (<?>) "orderBy" $ do
   _ <- isOrderBy
@@ -1134,8 +1134,8 @@ orderBy sx = flip (<?>) "orderBy" $ do
 
 -- | Parser for HAVING clauses.
 --
--- >>> testParseOnly havingCond "having count(t1.Sales) = 10"
--- Right (Eq (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Just Count, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Sales"}}})) (Column (Number {numberValue = 10.0})))
+-- >>> testParseOnly (havingCond SUD) "having count(t1.Sales) = 10"
+-- Right (Eq (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Just Count, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Sales"}}})) (Column () (Number {numberValue = 10.0})))
 havingCond :: forall x m. (TokenParsing m, MonadSQL x m) => SX x -> m (Cond x)
 havingCond sx = flip (<?>) "havingCond" $ isHaving *> someSpace *> cond sx
 
@@ -1149,40 +1149,40 @@ limit = flip (<?>) "limit" $ isLimit *> someSpace *> intP 8
 -- | 'SpiderSQL' parser.
 --
 -- >>> spiderSQLTestParseOnly "select *"
--- Right (SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
+-- Right (SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
 --
 -- >>> spiderSQLTestParseOnly "select count(*)"
--- Right (SpiderSQL {spiderSQLSelect = Select [Agg (Just Count) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
+-- Right (SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () (Just Count) (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
 --
 -- >>> spiderSQLTestParseOnly "select * from singer"
--- Right (SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "singer"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
+-- Right (SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "singer"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
 --
 -- >>> spiderSQLTestParseOnly "select * from song"
--- Right (SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
+-- Right (SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
 --
 -- >>> spiderSQLTestParseOnly "SELECT T1.Name, T1.Citizenship, T1.Birth_Year FROM singer AS T1 ORDER BY T1.Birth_Year DESC"
--- Right (SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Name"}}})),Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Citizenship"}}})),Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Birth_Year"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "singer"}) (Just (Alias {aliasName = "T1"}))], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Just (OrderBy [(Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Birth_Year"}}}),Desc)]), spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
+-- Right (SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Name"}}})),Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Citizenship"}}})),Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Birth_Year"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "singer"}) (Just (Alias {aliasName = "T1"}))], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Just (OrderBy [(Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Birth_Year"}}}),Desc)]), spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
 --
 -- >>> spiderSQLTestParseOnly "SELECT Name, Citizenship, Birth_Year FROM singer ORDER BY Birth_Year DESC"
--- Right (SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Name"}}})),Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Citizenship"}}})),Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Birth_Year"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "singer"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Just (OrderBy [(Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Birth_Year"}}}),Desc)]), spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
+-- Right (SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Name"}}})),Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Citizenship"}}})),Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Birth_Year"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "singer"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Just (OrderBy [(Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Birth_Year"}}}),Desc)]), spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
 --
 -- >>> spiderSQLTestParseOnly "SELECT   name  ,    citizenship  ,   birth_year   FROM   Singer  ORDER BY   birth_year   DESC"
--- Right (SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Name"}}})),Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Citizenship"}}})),Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Birth_Year"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "singer"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Just (OrderBy [(Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Birth_Year"}}}),Desc)]), spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
+-- Right (SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Name"}}})),Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Citizenship"}}})),Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Birth_Year"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "singer"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Just (OrderBy [(Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Birth_Year"}}}),Desc)]), spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
 --
 -- >>> spiderSQLTestParseOnly "SELECT T2.Title, T1.Name FROM singer AS T1 JOIN song AS T2 ON T1.Singer_ID = T2.Singer_ID"
--- Right (SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Title"}}})),Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Name"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "singer"}) (Just (Alias {aliasName = "T1"})),Table (TableId {tableName = "song"}) (Just (Alias {aliasName = "T2"}))], fromCond = Just (Eq (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})))}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
+-- Right (SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Title"}}})),Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Name"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "singer"}) (Just (Alias {aliasName = "T1"})),Table (TableId {tableName = "song"}) (Just (Alias {aliasName = "T2"}))], fromCond = Just (Eq (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})) (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})))}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
 --
 -- >>> spiderSQLTestParseOnly "SELECT T1.Name FROM singer AS T1 JOIN song AS T2 ON T1.Singer_ID = T2.Singer_ID GROUP BY T1.Name HAVING COUNT(*) > 1"
--- Right (SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Name"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "singer"}) (Just (Alias {aliasName = "T1"})),Table (TableId {tableName = "song"}) (Just (Alias {aliasName = "T2"}))], fromCond = Just (Eq (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})))}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Name"}}], spiderSQLOrderBy = Nothing, spiderSQLHaving = Just (Gt (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Just Count, colUnitTable = Nothing, colUnitColId = Star}})) (Column (Number {numberValue = 1.0}))), spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
+-- Right (SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Name"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "singer"}) (Just (Alias {aliasName = "T1"})),Table (TableId {tableName = "song"}) (Just (Alias {aliasName = "T2"}))], fromCond = Just (Eq (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})) (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})))}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Name"}}], spiderSQLOrderBy = Nothing, spiderSQLHaving = Just (Gt (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Just Count, colUnitTable = Nothing, colUnitColId = Star}})) (Column () (Number {numberValue = 1.0}))), spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
 --
 -- >>> spiderSQLTestParseOnly "select count t2.Song_ID, t1.Citizenship from singer AS t1 JOIN song AS t2 on t1.Singer_ID = t2.Singer_ID group by count t2.Song_ID, t1.Citizenship"
--- Right (SpiderSQL {spiderSQLSelect = Select [Agg (Just Count) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Song_ID"}}})),Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Citizenship"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "singer"}) (Just (Alias {aliasName = "T1"})),Table (TableId {tableName = "song"}) (Just (Alias {aliasName = "T2"}))], fromCond = Just (Eq (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Singer_ID"}}})))}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [ColUnit {colUnitAggId = Just Count, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnName = "Song_ID"}},ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Citizenship"}}], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
+-- Right (SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () (Just Count) (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}})),Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Citizenship"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "singer"}) (Just (Alias {aliasName = "T1"})),Table (TableId {tableName = "song"}) (Just (Alias {aliasName = "T2"}))], fromCond = Just (Eq (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})) (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Singer_ID"}}})))}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [ColUnit {colUnitX = (), colUnitAggId = Just Count, colUnitTable = Just (Right (Alias {aliasName = "T2"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}},ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Citizenship"}}], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
 --
 -- >>> spiderSQLTestParseOnly "SELECT title FROM song WHERE song_id IN (SELECT song_id FROM song)"
--- Right (SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Title"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Just (In (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}})) (Column (ValSQL {sqlValue = SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}}))), spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
+-- Right (SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Title"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Just (In (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}})) (Column () (ValSQL {sqlValueX = (), sqlValue = SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = ColumnId {columnIdX = (), columnName = "Song_ID"}}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) Nothing], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing}}))), spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
 --
 -- >>> spiderSQLTestParse "SELECT T1.title ,  count(*) FROM song AS T1 JOIN song AS T2 ON T1.song id"
--- Done " ON T1.song id" (SpiderSQL {spiderSQLSelect = Select [Agg Nothing (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnName = "Title"}}})),Agg (Just Count) (Column (ValColUnit {columnValue = ColUnit {colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) (Just (Alias {aliasName = "T1"})),Table (TableId {tableName = "song"}) (Just (Alias {aliasName = "T2"}))], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
+-- Done " ON T1.song id" (SpiderSQL {spiderSQLX = (), spiderSQLSelect = Select () [Agg () Nothing (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Just (Right (Alias {aliasName = "T1"})), colUnitColId = ColumnId {columnIdX = (), columnName = "Title"}}})),Agg () (Just Count) (Column () (ValColUnit {columnX = (), columnValue = ColUnit {colUnitX = (), colUnitAggId = Nothing, colUnitTable = Nothing, colUnitColId = Star}}))], spiderSQLFrom = From {fromTableUnits = [Table (TableId {tableName = "song"}) (Just (Alias {aliasName = "T1"})),Table (TableId {tableName = "song"}) (Just (Alias {aliasName = "T2"}))], fromCond = Nothing}, spiderSQLWhere = Nothing, spiderSQLGroupBy = [], spiderSQLOrderBy = Nothing, spiderSQLHaving = Nothing, spiderSQLLimit = Nothing, spiderSQLIntersect = Nothing, spiderSQLExcept = Nothing, spiderSQLUnion = Nothing})
 spiderSQL ::
   forall x m.
   ( TokenParsing m,
