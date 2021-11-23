@@ -21,7 +21,7 @@
     "num_beams": 4,
     "num_beam_groups": 1,
     "diversity_penalty": 0.0,
-    "max_val_samples": 1034,
+    "max_val_samples": 1300,
     "use_picard": true,
     "launch_picard": true,
     "picard_mode": "parse_with_guards",
