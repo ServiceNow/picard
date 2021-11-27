@@ -10,6 +10,12 @@
     <a href="https://github.com/ElementAI/picard/blob/main/LICENSE">
         <img alt="license" src="https://img.shields.io/github/license/ElementAI/picard.svg?color=blue">
     </a>
+    <a href="https://paperswithcode.com/paper/picard-parsing-incrementally-for-constrained">
+        <img src="https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/picard-parsing-incrementally-for-constrained/text-to-sql-on-spider">
+    </a>
+    <a href="https://paperswithcode.com/paper/picard-parsing-incrementally-for-constrained">
+        <img src="https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/picard-parsing-incrementally-for-constrained/dialogue-state-tracking-on-cosql">
+    </a>
 </p>
 
 This is the official implementation of the following paper:
