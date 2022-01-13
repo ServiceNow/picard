@@ -13,7 +13,7 @@ cython = "^0.29.23"
 six = "^1.15.0"
 
 datasets = "^1.12.1"
-nltk = "^3.6.3"
+nltk = "^3.6.6"
 pyyaml = "^5.4"
 sentencepiece = "0.1.96"
 tenacity = "^8.0.1"
