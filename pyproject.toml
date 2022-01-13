@@ -9,36 +9,36 @@ repository = "https://github.com/ElementAI/picard"
 
 [tool.poetry.dependencies]
 python = "^3.7"
-cython = "^0.29.23"
-six = "^1.15.0"
+cython = "^0.29.26"
+six = "^1.16.0"
 
 datasets = "^1.12.1"
-nltk = "^3.6.3"
-pyyaml = "^5.4"
+nltk = "^3.6.7"
+pyyaml = "^6.0"
 sentencepiece = "0.1.96"
 tenacity = "^8.0.1"
-rapidfuzz = "^1.6.1"
-alive_progress = "^2.0.0"
+rapidfuzz = "^1.9.1"
+alive_progress = "^2.1.0"
 sqlparse = "^0.4.2"
 
 pillow = "9.0.0"
-transformers = "^4.11.3"
-deepspeed = { version = "0.5.3", optional = true }
+transformers = "^4.15.0"
+deepspeed = { version = "0.5.9", optional = true }
 torch = { version = "1.9.0", optional = true }
 
-fastapi = "^0.68.2"
-uvicorn = "^0.15.0"
+fastapi = "^0.71.0"
+uvicorn = "^0.16.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
-pytest-check = "^1.0.2"
-isort = "^5.9.3"
-autopep8 = "^1.5.7"
-wandb = "^0.12.4"
-black = "^21.9b0"
-mypy = "^0.910"
-flake8 = "^3.9.2"
-# codalab = "1.1.1"
+pytest-check = "^1.0.4"
+isort = "^5.10.1"
+autopep8 = "^1.6.0"
+wandb = "^0.12.9"
+black = "^21.12b0"
+mypy = "^0.931"
+flake8 = "^4.0.1"
+# codalab = "1.4.1"
 
 [tool.poetry.extras]
 torch = ["torch"]
