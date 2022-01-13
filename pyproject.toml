@@ -21,7 +21,7 @@ rapidfuzz = "^1.6.1"
 alive_progress = "^2.0.0"
 sqlparse = "^0.4.2"
 
-pillow = "8.3.2"
+pillow = "9.0.0"
 transformers = "^4.11.3"
 deepspeed = { version = "0.5.3", optional = true }
 torch = { version = "1.9.0", optional = true }
