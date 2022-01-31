@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Optional, Union, Any, Callable, AsyncContextManager, List, Dict, Iterable
+from typing import Optional, Union, Any, Callable, AsyncContextManager, List, Dict
 from dataclasses import dataclass, field
 import collections
 import asyncio
@@ -9,11 +9,11 @@ import warnings
 import time
 from tenacity import retry, wait_random_exponential, stop_after_delay, before_sleep_log
 import torch
-from torch._C import Value
+from transformers import LogitsProcessorList
 from transformers.configuration_utils import PretrainedConfig
-from transformers.generation_utils import BeamSearchScorer, BeamSearchOutput, GreedySearchOutput
+from transformers.generation_utils import GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput
 from transformers.generation_logits_process import LogitsProcessor
-from transformers.file_utils import ModelOutput, copy_func
+from transformers.file_utils import copy_func
 from transformers.models.auto.auto_factory import _get_model_class
 from transformers.models.auto.configuration_auto import AutoConfig
 from transformers.tokenization_utils_fast import PreTrainedTokenizerFast
@@ -64,7 +64,9 @@ class PicardArguments:
     picard_port: int = field(default=9090, metadata={"help": "The port number for Picard."})
     picard_mode: str = field(
         default="parse_with_guards",
-        metadata={"help": "Picard mode. Choose between ``lex``, ``parse_without_guards``, ``parse_with_guards``, and ``parse_with_guards_and_type_checking."},
+        metadata={
+            "help": "Picard mode. Choose between ``lex``, ``parse_without_guards``, ``parse_with_guards``, and ``parse_with_guards_and_type_checking."
+        },
     )
     picard_schedule: str = field(
         default="incremental",
@@ -85,7 +87,9 @@ class PicardLauncher(subprocess.Popen):
         try:
             super().__init__(["picard"])
         except FileNotFoundError:
-            with subprocess.Popen(["cabal", "install", "--overwrite-policy=always", "--install-method=copy", "exe:picard"]) as picard_build_pid:
+            with subprocess.Popen(
+                ["cabal", "install", "--overwrite-policy=always", "--install-method=copy", "exe:picard"]
+            ) as picard_build_pid:
                 picard_build_pid.wait(timeout=1000)
             super().__init__(["picard"])
         time.sleep(1)
@@ -150,149 +154,11 @@ def with_picard(
     @torch.no_grad()
     def _generate(
         self,
-        input_ids: Optional[torch.LongTensor] = None,
-        max_length: Optional[int] = None,
-        min_length: Optional[int] = None,
-        do_sample: Optional[bool] = None,
-        early_stopping: Optional[bool] = None,
-        num_beams: Optional[int] = None,
-        temperature: Optional[float] = None,
-        top_k: Optional[int] = None,
-        top_p: Optional[float] = None,
-        repetition_penalty: Optional[float] = None,
-        bad_words_ids: Optional[Iterable[int]] = None,
-        bos_token_id: Optional[int] = None,
-        pad_token_id: Optional[int] = None,
+        logits_processor: Optional[LogitsProcessorList] = LogitsProcessorList(),
         eos_token_id: Optional[int] = None,
-        length_penalty: Optional[float] = None,
-        no_repeat_ngram_size: Optional[int] = None,
-        encoder_no_repeat_ngram_size: Optional[int] = None,
-        num_return_sequences: Optional[int] = None,
-        max_time: Optional[float] = None,
-        max_new_tokens: Optional[int] = None,
-        decoder_start_token_id: Optional[int] = None,
-        use_cache: Optional[bool] = None,
-        num_beam_groups: Optional[int] = None,
-        diversity_penalty: Optional[float] = None,
-        prefix_allowed_tokens_fn: Optional[Callable[[int, torch.Tensor], List[int]]] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        output_scores: Optional[bool] = None,
-        return_dict_in_generate: Optional[bool] = None,
-        forced_bos_token_id: Optional[int] = None,
-        forced_eos_token_id: Optional[int] = None,
-        remove_invalid_values: Optional[bool] = None,
-        synced_gpus: Optional[bool] = None,
-        **model_kwargs,
-    ) -> Union[GreedySearchOutput, BeamSearchOutput]:
-        # set init values
-        if max_length is None and max_new_tokens is None:
-            # Both are None, default
-            max_length = self.config.max_length
-        elif max_length is not None and max_new_tokens is not None:
-            # Both are set, this is odd, raise a warning
-            warnings.warn(
-                "Both `max_length` and `max_new_tokens` have been set but they serve the same purpose.", UserWarning
-            )
-
-        max_length = max_length if max_length is not None else self.config.max_length
-        num_beams = num_beams if num_beams is not None else self.config.num_beams
-        num_beam_groups = num_beam_groups if num_beam_groups is not None else self.config.num_beam_groups
-        do_sample = do_sample if do_sample is not None else self.config.do_sample
-        num_return_sequences = (
-            num_return_sequences if num_return_sequences is not None else self.config.num_return_sequences
-        )
-
-        pad_token_id = pad_token_id if pad_token_id is not None else self.config.pad_token_id
-        bos_token_id = bos_token_id if bos_token_id is not None else self.config.bos_token_id
+        **kwargs,
+    ) -> Union[GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput, torch.LongTensor]:
         eos_token_id = eos_token_id if eos_token_id is not None else self.config.eos_token_id
-
-        output_scores = output_scores if output_scores is not None else self.config.output_scores
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-        return_dict_in_generate = (
-            return_dict_in_generate if return_dict_in_generate is not None else self.config.return_dict_in_generate
-        )
-
-        model_kwargs["output_attentions"] = output_attentions
-        model_kwargs["output_hidden_states"] = output_hidden_states
-
-        if input_ids is None and "inputs_embeds" not in model_kwargs:
-            # init `input_ids` with bos_token_id
-            input_ids = self._prepare_input_ids_for_generation(bos_token_id, model_kwargs.get("encoder_outputs"))
-
-        if model_kwargs.get("attention_mask", None) is None:
-            # init `attention_mask` depending on `pad_token_id`
-            model_kwargs["attention_mask"] = self._prepare_attention_mask_for_generation(
-                input_ids, pad_token_id, eos_token_id
-            )
-
-        # special case if pad_token_id is not defined
-        if pad_token_id is None and eos_token_id is not None:
-            logger.warning(f"Setting `pad_token_id` to `eos_token_id`:{eos_token_id} for open-end generation.")
-            pad_token_id = eos_token_id
-
-        # Storing encoder_input_ids for logits_processor that could use them
-        encoder_input_ids = input_ids if self.config.is_encoder_decoder else None
-
-        if self.config.is_encoder_decoder:
-            # add encoder_outputs to model_kwargs
-            model_kwargs = self._prepare_encoder_decoder_kwargs_for_generation(input_ids, model_kwargs)
-
-            # set input_ids as decoder_input_ids
-            if "decoder_input_ids" in model_kwargs:
-                input_ids = model_kwargs.pop("decoder_input_ids")
-            else:
-                input_ids = self._prepare_decoder_input_ids_for_generation(
-                    input_ids, decoder_start_token_id=decoder_start_token_id, bos_token_id=bos_token_id
-                )
-
-            if "encoder_outputs" not in model_kwargs or not isinstance(model_kwargs["encoder_outputs"], ModelOutput):
-                raise ValueError("Make sure that `model_kwargs` include `encoder_outputs` of type `ModelOutput`.")
-
-        if input_ids.shape[-1] >= max_length:
-            input_ids_string = "decoder_input_ids" if self.config.is_encoder_decoder else "input_ids"
-            logger.warning(
-                f"Input length of {input_ids_string} is {input_ids.shape[-1]}, but ``max_length`` is set to {max_length}."
-                "This can lead to unexpected behavior. You should consider increasing ``config.max_length`` or ``max_length``."
-            )
-
-        # determine generation mode
-        is_greedy_gen_mode = (num_beams == 1) and (num_beam_groups == 1) and do_sample is False
-        is_sample_gen_mode = (num_beams == 1) and (num_beam_groups == 1) and do_sample is True
-        is_beam_gen_mode = (num_beams > 1) and (num_beam_groups == 1) and do_sample is False
-        is_beam_sample_gen_mode = (num_beams > 1) and (num_beam_groups == 1) and do_sample is True
-        is_group_beam_gen_mode = (num_beams > 1) and (num_beam_groups > 1)
-        if num_beam_groups > num_beams:
-            raise ValueError("`num_beam_groups` has to be smaller or equal to `num_beams`")
-        if is_group_beam_gen_mode and do_sample is True:
-            raise ValueError(
-                "Diverse beam search cannot be used in sampling mode. Make sure that `do_sample` is set to `False`."
-            )
-
-        # set model_kwargs
-        model_kwargs["use_cache"] = use_cache
-
-        # get distribution pre_processing samplers
-        logits_processor = self._get_logits_processor(
-            repetition_penalty=repetition_penalty,
-            no_repeat_ngram_size=no_repeat_ngram_size,
-            encoder_no_repeat_ngram_size=encoder_no_repeat_ngram_size,
-            encoder_input_ids=encoder_input_ids,
-            bad_words_ids=bad_words_ids,
-            min_length=min_length,
-            max_length=max_length,
-            eos_token_id=eos_token_id,
-            forced_bos_token_id=forced_bos_token_id,
-            forced_eos_token_id=forced_eos_token_id,
-            prefix_allowed_tokens_fn=prefix_allowed_tokens_fn,
-            num_beams=num_beams,
-            num_beam_groups=num_beam_groups,
-            diversity_penalty=diversity_penalty,
-            remove_invalid_values=remove_invalid_values,
-        )
 
         logits_processor.append(
             PicardLogitsProcessor(
@@ -304,114 +170,7 @@ def with_picard(
             )
         )
 
-        cur_len = input_ids.shape[-1]
-        stopping_criteria = self._get_stopping_criteria(
-            max_length=max_length, max_time=max_time, max_new_tokens=max_new_tokens, start_length=cur_len
-        )
-
-        if is_greedy_gen_mode:
-            if num_return_sequences > 1:
-                raise ValueError(
-                    f"num_return_sequences has to be 1, but is {num_return_sequences} when doing greedy search."
-                )
-
-            # greedy search
-            return self.greedy_search(
-                input_ids,
-                logits_processor=logits_processor,
-                stopping_criteria=stopping_criteria,
-                pad_token_id=pad_token_id,
-                eos_token_id=eos_token_id,
-                output_scores=output_scores,
-                return_dict_in_generate=return_dict_in_generate,
-                synced_gpus=synced_gpus,
-                **model_kwargs,
-            )
-
-        elif is_sample_gen_mode:
-            raise NotImplementedError("Sampling with Picard is not supported")
-
-        elif is_beam_gen_mode:
-            batch_size = input_ids.shape[0]
-
-            length_penalty = length_penalty if length_penalty is not None else self.config.length_penalty
-            early_stopping = early_stopping if early_stopping is not None else self.config.early_stopping
-
-            if num_return_sequences > num_beams:
-                raise ValueError("`num_return_sequences` has to be smaller or equal to `num_beams`.")
-
-            if stopping_criteria.max_length is None:
-                raise ValueError("`max_length` needs to be a stopping_criteria for now.")
-
-            beam_scorer = BeamSearchScorer(
-                batch_size=batch_size,
-                num_beams=num_beams,
-                device=self.device,
-                length_penalty=length_penalty,
-                do_early_stopping=early_stopping,
-                num_beam_hyps_to_keep=num_return_sequences,
-            )
-            # interleave with `num_beams`
-            input_ids, model_kwargs = self._expand_inputs_for_generation(
-                input_ids, expand_size=num_beams, is_encoder_decoder=self.config.is_encoder_decoder, **model_kwargs
-            )
-            return self.beam_search(
-                input_ids,
-                beam_scorer,
-                logits_processor=logits_processor,
-                stopping_criteria=stopping_criteria,
-                pad_token_id=pad_token_id,
-                eos_token_id=eos_token_id,
-                output_scores=output_scores,
-                return_dict_in_generate=return_dict_in_generate,
-                synced_gpus=synced_gpus,
-                **model_kwargs,
-            )
-
-        elif is_beam_sample_gen_mode:
-            raise NotImplementedError("Beam sampling with Picard is not supported")
-
-        elif is_group_beam_gen_mode:
-            batch_size = input_ids.shape[0]
-
-            length_penalty = length_penalty if length_penalty is not None else self.config.length_penalty
-            early_stopping = early_stopping if early_stopping is not None else self.config.early_stopping
-
-            if num_return_sequences > num_beams:
-                raise ValueError("`num_return_sequences` has to be smaller or equal to `num_beams`.")
-
-            if num_beams % num_beam_groups != 0:
-                raise ValueError("`num_beams` should be divisible by `num_beam_groups` for group beam search.")
-
-            if stopping_criteria.max_length is None:
-                raise ValueError("`max_length` needs to be a stopping_criteria for now.")
-
-            diverse_beam_scorer = BeamSearchScorer(
-                batch_size=batch_size,
-                num_beams=num_beams,
-                max_length=stopping_criteria.max_length,
-                device=self.device,
-                length_penalty=length_penalty,
-                do_early_stopping=early_stopping,
-                num_beam_hyps_to_keep=num_return_sequences,
-                num_beam_groups=num_beam_groups,
-            )
-            # interleave with `num_beams`
-            input_ids, model_kwargs = self._expand_inputs_for_generation(
-                input_ids, expand_size=num_beams, is_encoder_decoder=self.config.is_encoder_decoder, **model_kwargs
-            )
-            return self.group_beam_search(
-                input_ids,
-                diverse_beam_scorer,
-                logits_processor=logits_processor,
-                stopping_criteria=stopping_criteria,
-                pad_token_id=pad_token_id,
-                eos_token_id=eos_token_id,
-                output_scores=output_scores,
-                return_dict_in_generate=return_dict_in_generate,
-                synced_gpus=synced_gpus,
-                **model_kwargs,
-            )
+        return self.old_generate(logits_processor=logits_processor, eos_token_id=eos_token_id, **kwargs)
 
     class _PicardAutoModelClass(model_cls):
         @classmethod
@@ -427,6 +186,7 @@ def with_picard(
                 model_class = _get_model_class(config, cls._model_mapping)
                 generate = copy_func(_generate)
                 generate.__doc__ = model_class.generate.__doc__
+                model_class.old_generate = copy_func(model_class.generate)
                 model_class.generate = generate
                 model_class.add_schema = staticmethod(copy_func(_add_schema))
                 return model_class.from_pretrained(pretrained_model_name_or_path, *model_args, config=config, **kwargs)
