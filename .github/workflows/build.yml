@@ -48,6 +48,7 @@ jobs:
           tags: |
             tscholak/text-to-sql-dev:${{ github.sha }}
             tscholak/text-to-sql-dev:cache
+            tscholak/text-to-sql-dev:devcontainer
           target: dev
           cache-from: type=registry,ref=tscholak/text-to-sql-dev:cache
           cache-to: type=inline
