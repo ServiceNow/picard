@@ -148,3 +148,4 @@ eval/*
 transformers_cache/*
 wandb/*
 database/*
+.DS_Store
