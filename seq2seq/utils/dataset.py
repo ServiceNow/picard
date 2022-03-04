@@ -127,12 +127,14 @@ class DataTrainingArguments:
 @dataclass
 class DataArguments:
     dataset: str = field(
-        metadata={"help": "The dataset to be used. Choose between ``spider``, ``cosql``, or ``cosql+spider``."},
+        metadata={"help": "The dataset to be used. Choose between ``spider``, ``cosql``, or ``cosql+spider``, or ``spider_realistic``."},
     )
     dataset_paths: Dict[str, str] = field(
         default_factory=lambda: {
             "spider": "./seq2seq/datasets/spider",
             "cosql": "./seq2seq/datasets/cosql",
+            "spider_realistic": "./seq2seq/datasets/spider_realistic"
+
         },
         metadata={"help": "Paths of the dataset modules."},
     )
@@ -140,9 +142,11 @@ class DataArguments:
         default="both",
         metadata={"help": "Choose between ``exact_match``, ``test_suite``, or ``both``."},
     )
+    #we are referencing spider_realistic to spider metrics only as both use the main spider dataset as base.
     metric_paths: Dict[str, str] = field(
         default_factory=lambda: {
             "spider": "./seq2seq/metrics/spider",
+            "spider_realistic" : "./seq2seq/metrics/spider",
             "cosql": "./seq2seq/metrics/cosql",
         },
         metadata={"help": "Paths of the metric modules."},

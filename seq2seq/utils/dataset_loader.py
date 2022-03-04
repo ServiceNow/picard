@@ -76,6 +76,13 @@ def load_dataset(
         data_training_args=data_training_args,
         tokenizer=tokenizer,
     )
+    #adding spider_realistic dataset, metric, using schema and preprocess funtions of spider as it is
+    _spider_realistic_dataset_dict : Callable[[], DatasetDict] = lambda: datasets.load.load_dataset(
+        path=data_args.dataset_paths['spider_realistic'], cache_dir=model_args.cache_dir
+    )
+    _spider_realistic_metric: Callable[[], Metric] = lambda: datasets.load.load_metric(
+        path=data_args.metric_paths["spider_realistic"], config_name=data_args.metric_config, test_suite_db_dir=data_args.test_suite_db_dir
+    )
 
     _prepare_splits_kwargs = {
         "data_args": data_args,
@@ -97,6 +104,14 @@ def load_dataset(
             dataset_dict=_cosql_dataset_dict(),
             add_serialized_schema=_cosql_add_serialized_schema,
             pre_process_function=_cosql_pre_process_function,
+            **_prepare_splits_kwargs,
+        )
+    elif data_args.dataset == "spider_realistic":
+        metric = _spider_realistic_metric()
+        dataset_splits = prepare_splits(
+            dataset_dict= _spider_realistic_dataset_dict(),
+            add_serialized_schema=_spider_add_serialized_schema,
+            pre_process_function=_spider_pre_process_function,
             **_prepare_splits_kwargs,
         )
     elif data_args.dataset == "cosql+spider":
