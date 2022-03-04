@@ -195,7 +195,7 @@ def main() -> None:
             "target_with_db_id": data_training_args.target_with_db_id,
         }
         #using spidertrainer as it is.
-        if data_args.dataset in ["spider", "spider_realistic"]:
+        if data_args.dataset in ["spider", "spider_realistic", "spider_syn"]:
             trainer = SpiderTrainer(**trainer_kwargs)
         elif data_args.dataset in ["cosql", "cosql+spider"]:
             trainer = CoSQLTrainer(**trainer_kwargs)
