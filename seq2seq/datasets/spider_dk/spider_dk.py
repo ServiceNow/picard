@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Spider-Syn: Spider Syn Dataset for evaluating Text-SQL models"""
+"""Spider-DK: Exploring Underexplored Limitations of Cross-Domain Text-to-SQL Generalization"""
 
 import json
 from turtle import down
@@ -23,31 +23,33 @@ from typing import List, Generator, Any, Dict, Tuple
 logger = datasets.logging.get_logger(__name__)
 
 _CITATION = """
-@article{gan2021towards,
-  title={Towards robustness of text-to-SQL models against synonym substitution},
-  author={Gan, Yujian and Chen, Xinyun and Huang, Qiuping and Purver, Matthew and Woodward, John R and Xie, Jinxia and Huang, Pengsheng},
-  journal={arXiv preprint arXiv:2106.01065},
-  year={2021}
+@misc{gan2021exploring,
+      title={Exploring Underexplored Limitations of Cross-Domain Text-to-SQL Generalization}, 
+      author={Yujian Gan and Xinyun Chen and Matthew Purver},
+      year={2021},
+      eprint={2109.05157},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
 }
 """
 
 _DESCRIPTION = """\
-    Spider-Syn: synthesized data for original spider dataset.
+    Spider-DK new domain-data data for original spider dataset.
 """
 
-_HOMEPAGE = "https://zenodo.org/record/5205322#.Yh-B1uhByUl"
+_HOMEPAGE = "https://github.com/ygan/Spider-DK"
 
 _LICENCE = "CC BY-SA 4.0"
 
-_URL = "https://github.com/ygan/Spider-Syn/blob/main/Spider-Syn/dev.json"
+_URL = "https://github.com/ygan/Spider-DK/blob/main/Spider-DK.json"
 
-class SpiderSyn(datasets.GeneratorBasedBuilder):
+class SpiderDK(datasets.GeneratorBasedBuilder):
     VERSION = datasets.Version("1.0.0")
 
     BUILDER_CONFIGS = [datasets.BuilderConfig(
-        name = "spider-syn",
+        name = "spider-dk",
         version = VERSION,
-        description="Spider-Syn: Original spider dev data modified to test robustness of text-to-SQL models against synonym substitution."
+        description="Spider-DK: Original spider dev data modified for Exploring Underexplored Limitations of Cross-Domain Text-to-SQL Generalization"
     )]
 
 
@@ -98,8 +100,8 @@ class SpiderSyn(datasets.GeneratorBasedBuilder):
             datasets.SplitGenerator(
                 name = datasets.Split.VALIDATION,
                 gen_kwargs={
-                    "data_filepaths":[downloaded_filepath + "/spider-syn/spider-syn.json"],
-                    "db_path": downloaded_filepath + "/spider-syn/database",
+                    "data_filepaths":[downloaded_filepath + "/spider-dk/spider-DK.json"],
+                    "db_path": downloaded_filepath + "/spider-dk/database",
                 },
             ),
         ]
@@ -109,14 +111,10 @@ class SpiderSyn(datasets.GeneratorBasedBuilder):
     ) -> Generator[Tuple[int, Dict[str, Any]], None, None]:
     
         for data_filepath in data_filepaths:
-            if(data_filepath.find('train_spider.json')>=0):
-                question_field = "question"
-            else:
-                question_field = "SpiderSynQuestion"
             logger.info("generating examples form = %s", data_filepath)
             with open(data_filepath, encoding='utf-8') as f:
-                spider_syn = json.load(f)
-                for idx, sample in enumerate(spider_syn):
+                spider_dk = json.load(f)
+                for idx, sample in enumerate(spider_dk):
                     db_id = sample['db_id']
                     if db_id not in self.schema_cache:
                         self.schema_cache[db_id] = dump_db_json_schema(
@@ -125,7 +123,7 @@ class SpiderSyn(datasets.GeneratorBasedBuilder):
                     schema = self.schema_cache[db_id]
                     yield idx, {
                         "query": sample['query'],
-                        "question": sample[question_field],
+                        "question": sample['question'],
                         "db_id": db_id,
                         "db_path": db_path,
                         "db_table_names": schema["table_names_original"],
