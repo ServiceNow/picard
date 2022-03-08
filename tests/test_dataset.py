@@ -67,7 +67,7 @@ def expected_max_input_ids_len(data_args: DataArguments, split: str, schema_seri
         elif _data_args.dataset == "spider" and split == "eval" and not schema_serialization_with_db_content:
             return 468
         elif _data_args.dataset == "cosql" and split == "train" and schema_serialization_with_db_content:
-            return 2225
+            return 2227
         elif _data_args.dataset == "cosql" and split == "train" and not schema_serialization_with_db_content:
             return 1984
         elif _data_args.dataset == "cosql" and split == "eval" and schema_serialization_with_db_content:
@@ -164,7 +164,7 @@ def test_dataset_loader(
     print(list(schemas.keys()))
 
     for db_id, schema in schemas.items():
-        if "academic" in db_id or "scholar" in db_id or "geo" in db_id or "imdb" in db_id or "yelp" in db_id or "restaurants" in db_id:
+        if db_id in ["academic", "scholar", "geo", "imdb", "yelp", "restaurants", "orchestra", "wta_1", "singer", "cre_Doc_Template_Mgt", "dog_kennels", "poker_player", "museum_visit", "student_transcripts_tracking"]:
             sql_schema = get_picard_schema(**schema)
             c_names_str = ", ".join((f"(\"{c_id}\", \"{c_name}\")" for c_id, c_name in sql_schema.columnNames.items()))
             c_type_str = lambda c_type: str(c_type).replace('.', "_")

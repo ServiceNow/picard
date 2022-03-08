@@ -119,17 +119,25 @@ test-suite spec
       Language.SQL.SpiderSQL.Car1
       Language.SQL.SpiderSQL.Chinook1
       Language.SQL.SpiderSQL.ConcertSinger
+      Language.SQL.SpiderSQL.CreDocTemplateMgt
       Language.SQL.SpiderSQL.DepartmentManagement
+      Language.SQL.SpiderSQL.DogKennels
       Language.SQL.SpiderSQL.Flight1
       Language.SQL.SpiderSQL.Geo
       Language.SQL.SpiderSQL.Inn1
       Language.SQL.SpiderSQL.MatchSeason
+      Language.SQL.SpiderSQL.MuseumVisit
+      Language.SQL.SpiderSQL.Orchestra
       Language.SQL.SpiderSQL.Pets1
       Language.SQL.SpiderSQL.PhoneMarket
+      Language.SQL.SpiderSQL.PokerPlayer
       Language.SQL.SpiderSQL.ProductCatalog
       Language.SQL.SpiderSQL.Scholar
+      Language.SQL.SpiderSQL.Singer
       Language.SQL.SpiderSQL.StormRecord
+      Language.SQL.SpiderSQL.StudentTranscriptsTracking
       Language.SQL.SpiderSQL.TestItem
+      Language.SQL.SpiderSQL.Wta1
   hs-source-dirs:
       tests
   default-extensions: DeriveDataTypeable ExistentialQuantification FlexibleInstances KindSignatures LambdaCase MagicHash RankNTypes RecordWildCards ScopedTypeVariables TypeSynonymInstances DataKinds DeriveGeneric DerivingStrategies DeriveAnyClass DerivingVia GeneralizedNewtypeDeriving FlexibleContexts TypeApplications ConstraintKinds MultiParamTypeClasses TupleSections

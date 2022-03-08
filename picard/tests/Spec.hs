@@ -12,20 +12,28 @@ import Language.SQL.SpiderSQL.Bike1 (bike1LexerTests, bike1ParserTests)
 import Language.SQL.SpiderSQL.Car1 (car1LexerTests, car1ParserTests)
 import Language.SQL.SpiderSQL.Chinook1 (chinook1LexerTests, chinook1ParserTests)
 import Language.SQL.SpiderSQL.ConcertSinger (concertSingerLexerTests, concertSingerParserTests)
+import Language.SQL.SpiderSQL.CreDocTemplateMgt (creDocTemplateMgtLexerTests, creDocTemplateMgtParserTests)
 import Language.SQL.SpiderSQL.DepartmentManagement (departmentManagementLexerTests, departmentManagementParserTests)
+import Language.SQL.SpiderSQL.DogKennels (dogKennelsLexerTests, dogKennelsParserTests)
 import Language.SQL.SpiderSQL.Flight1 (flight1LexerTests, flight1ParserTests)
 import Language.SQL.SpiderSQL.Geo (geoLexerTests, geoParserTests)
 import Language.SQL.SpiderSQL.Inn1 (inn1LexerTests, inn1ParserTests)
 import Language.SQL.SpiderSQL.Lexer (lexSpiderSQL)
 import Language.SQL.SpiderSQL.MatchSeason (matchSeasonLexerTests, matchSeasonParserTests)
+import Language.SQL.SpiderSQL.MuseumVisit (museumVisitLexerTests, museumVisitParserTests)
+import Language.SQL.SpiderSQL.Orchestra (orchestraLexerTests, orchestraParserTests)
 import Language.SQL.SpiderSQL.Parse (ParserEnv (..), ParserEnvWithGuards (..), mkParserStateTC, mkParserStateUD, spiderSQL, withGuards)
 import Language.SQL.SpiderSQL.Pets1 (pets1LexerTests, pets1ParserTests)
 import Language.SQL.SpiderSQL.PhoneMarket (phoneMarketLexerTests, phoneMarketParserTests)
+import Language.SQL.SpiderSQL.PokerPlayer (pokerPlayerLexerTests, pokerPlayerParserTests)
 import Language.SQL.SpiderSQL.ProductCatalog (productCatalogLexerTests, productCatalogParserTests)
 import Language.SQL.SpiderSQL.Scholar (scholarLexerTests, scholarParserTests)
+import Language.SQL.SpiderSQL.Singer (singerLexerTests, singerParserTests)
 import Language.SQL.SpiderSQL.StormRecord (stormRecordLexerTests, stormRecordParserTests)
+import Language.SQL.SpiderSQL.StudentTranscriptsTracking (studentTranscriptsTrackingLexerTests, studentTranscriptsTrackingParserTests)
 import Language.SQL.SpiderSQL.Syntax (SX (..))
 import Language.SQL.SpiderSQL.TestItem (TestItem (..))
+import Language.SQL.SpiderSQL.Wta1 (wta1LexerTests, wta1ParserTests)
 import qualified Test.Tasty as T
 import qualified Test.Tasty.HUnit as H
 import Text.Parser.Char (CharParsing (..), spaces)
@@ -33,7 +41,7 @@ import Text.Parser.Combinators (Parsing (..))
 import qualified Text.Trifecta.Parser as Trifecta
 import qualified Text.Trifecta.Result as Trifecta
 
--- | Run 'cabal repl test:picard-test' to get a REPL for the tests.
+-- | Run 'cabal repl test:spec' to get a REPL for the tests.
 main :: IO ()
 main = T.defaultMain testTree
 
@@ -49,16 +57,24 @@ testData =
           car1LexerTests,
           chinook1LexerTests,
           concertSingerLexerTests,
+          creDocTemplateMgtLexerTests,
           departmentManagementLexerTests,
+          dogKennelsLexerTests,
           flight1LexerTests,
           geoLexerTests,
           inn1LexerTests,
           matchSeasonLexerTests,
+          museumVisitLexerTests,
+          orchestraLexerTests,
           pets1LexerTests,
           phoneMarketLexerTests,
+          pokerPlayerLexerTests,
           productCatalogLexerTests,
           scholarLexerTests,
-          stormRecordLexerTests
+          singerLexerTests,
+          stormRecordLexerTests,
+          studentTranscriptsTrackingLexerTests,
+          wta1LexerTests
         ],
       Group
         "parser"
@@ -68,16 +84,24 @@ testData =
           car1ParserTests,
           chinook1ParserTests,
           concertSingerParserTests,
+          creDocTemplateMgtParserTests,
           departmentManagementParserTests,
+          dogKennelsParserTests,
           flight1ParserTests,
           geoParserTests,
           inn1ParserTests,
           matchSeasonParserTests,
+          museumVisitParserTests,
+          orchestraParserTests,
           pets1ParserTests,
           phoneMarketParserTests,
+          pokerPlayerParserTests,
           productCatalogParserTests,
           scholarParserTests,
-          stormRecordParserTests
+          singerParserTests,
+          stormRecordParserTests,
+          studentTranscriptsTrackingParserTests,
+          wta1ParserTests
         ]
     ]
 
