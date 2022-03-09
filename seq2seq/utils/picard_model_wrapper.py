@@ -154,6 +154,7 @@ def with_picard(
     @torch.no_grad()
     def _generate(
         self,
+        *args,
         logits_processor: Optional[LogitsProcessorList] = LogitsProcessorList(),
         eos_token_id: Optional[int] = None,
         **kwargs,
@@ -170,7 +171,7 @@ def with_picard(
             )
         )
 
-        return self.old_generate(logits_processor=logits_processor, eos_token_id=eos_token_id, **kwargs)
+        return self.old_generate(*args, logits_processor=logits_processor, eos_token_id=eos_token_id, **kwargs)
 
     class _PicardAutoModelClass(model_cls):
         @classmethod
