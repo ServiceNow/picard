@@ -87,6 +87,13 @@ class DataTrainingArguments:
             "which is used during ``evaluate`` and ``predict``."
         },
     )
+    num_return_sequences: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "The number of sequences to generate during evaluation. This argument will be passed to "
+            "``model.generate``, which is used during ``evaluate`` and ``predict``."
+        },
+    )
     ignore_pad_token_for_loss: bool = field(
         default=True,
         metadata={

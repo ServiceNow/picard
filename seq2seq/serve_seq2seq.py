@@ -19,7 +19,7 @@ from transformers.hf_argparser import HfArgumentParser
 from transformers.models.auto import AutoConfig, AutoTokenizer, AutoModelForSeq2SeqLM
 from fastapi import FastAPI, HTTPException
 from uvicorn import run
-from sqlite3 import connect, OperationalError
+from sqlite3 import Connection, connect, OperationalError
 from seq2seq.utils.pipeline import Text2SQLGenerationPipeline, Text2SQLInput, get_schema
 from seq2seq.utils.picard_model_wrapper import PicardArguments, PicardLauncher, with_picard
 from seq2seq.utils.dataset import DataTrainingArguments
@@ -119,22 +119,27 @@ def main():
         class AskResponse(BaseModel):
             query: str
             execution_results: list
-
-        @app.get("/ask/{db_id}/{question}")
-        def ask(db_id: str, question: str):
+        
+        def response(query: str, conn: Connection) -> AskResponse:
             try:
-                outputs = pipe(inputs=Text2SQLInput(utterance=question, db_id=db_id))
-                output = outputs[0]
-            except OperationalError as e:
-                raise HTTPException(status_code=404, detail=e.args[0])
-            query = output["generated_text"]
-            try:
-                conn = connect(backend_args.db_path + "/" + db_id + "/" + db_id + ".sqlite")
                 return AskResponse(query=query, execution_results=conn.execute(query).fetchall())
             except OperationalError as e:
                 raise HTTPException(
                     status_code=500, detail=f'while executing "{query}", the following error occurred: {e.args[0]}'
                 )
+
+        @app.get("/ask/{db_id}/{question}")
+        def ask(db_id: str, question: str):
+            try:
+                outputs = pipe(
+                    inputs=Text2SQLInput(utterance=question, db_id=db_id),
+                    num_return_sequences=data_training_args.num_return_sequences
+                )
+            except OperationalError as e:
+                raise HTTPException(status_code=404, detail=e.args[0])
+            try:
+                conn = connect(backend_args.db_path + "/" + db_id + "/" + db_id + ".sqlite")
+                return [response(query=output["generated_text"], conn=conn) for output in outputs]
             finally:
                 conn.close()
 
