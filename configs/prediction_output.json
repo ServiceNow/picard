@@ -1,0 +1,22 @@
+{
+    "model_path": "tscholak/1zha5ono",
+    "source_prefix": "",
+    "schema_serialization_type": "peteshaw",
+    "schema_serialization_randomized": false,
+    "schema_serialization_with_db_id": true,
+    "schema_serialization_with_db_content": true,
+    "normalize_query": true,
+    "target_with_db_id": true,
+    "db_path": "/transformers_cache/downloads/extracted/51c8ea9551857aa652f97b8ceec4cfbb36ec333be04bafd5a5e0f98c01d36073/spider/database",
+    "cache_dir": "/transformers_cache",
+    "num_beams": 4,
+    "use_picard": true,
+    "launch_picard": true,
+    "picard_mode": "parse_with_guards",
+    "picard_schedule": "incremental",
+    "picard_max_tokens_to_check": 2,
+    "device": -1,
+    "conversational": false,
+    "inputs_path":"/transformers_cache/downloads/extracted/51c8ea9551857aa652f97b8ceec4cfbb36ec333be04bafd5a5e0f98c01d36073/spider/dev.json",
+    "output_path": "/prediction_output/predicted_sql.txt"
+}

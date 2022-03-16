@@ -180,3 +180,17 @@ serve: pull-eval-image
 		--mount type=bind,source=$(BASE_DIR)/configs,target=/app/configs \
 		tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF) \
 		/bin/bash -c "python seq2seq/serve_seq2seq.py configs/serve.json"
+
+.PHONY: prediction_output
+prediction_output: pull-eval-image
+	mkdir -p -m 777 prediction_output
+	docker run \
+		-it \
+		--rm \
+		--user 13011:13011 \
+		-p 8000:8000 \
+		--mount type=bind,source=$(BASE_DIR)/prediction_output,target=/prediction_output \
+		--mount type=bind,source=$(BASE_DIR)/transformers_cache,target=/transformers_cache \
+		--mount type=bind,source=$(BASE_DIR)/configs,target=/app/configs \
+		tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF) \
+		/bin/bash -c "python seq2seq/prediction_output.py configs/prediction_output.json"

@@ -18,15 +18,15 @@ from contextlib import nullcontext
 from alive_progress import alive_bar
 from transformers.hf_argparser import HfArgumentParser
 from transformers.models.auto import AutoConfig, AutoTokenizer, AutoModelForSeq2SeqLM
-from seq2seq.utils.pipeline import ConversationalText2SQLGenerationPipeline, Text2SQLGenerationPipeline
+from seq2seq.utils.pipeline import ConversationalText2SQLGenerationPipeline, Text2SQLGenerationPipeline, Text2SQLInput, ConversationalText2SQLInput
 from seq2seq.utils.picard_model_wrapper import PicardArguments, PicardLauncher, with_picard
 from seq2seq.utils.dataset import DataTrainingArguments
 
 
 @dataclass
-class CodalabArguments:
+class PredictionOutputArguments:
     """
-    Arguments pertaining to codalab execution.
+    Arguments pertaining to execution.
     """
 
     model_path: str = field(
@@ -56,24 +56,24 @@ class CodalabArguments:
 
 def main():
     # See all possible arguments by passing the --help flag to this program.
-    parser = HfArgumentParser((PicardArguments, CodalabArguments, DataTrainingArguments))
+    parser = HfArgumentParser((PicardArguments, PredictionOutputArguments, DataTrainingArguments))
     picard_args: PicardArguments
-    codalab_args: CodalabArguments
+    prediction_output_args: PredictionOutputArguments
     data_training_args: DataTrainingArguments
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        picard_args, codalab_args, data_training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        picard_args, prediction_output_args, data_training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
     else:
-        picard_args, codalab_args, data_training_args = parser.parse_args_into_dataclasses()
+        picard_args, prediction_output_args, data_training_args = parser.parse_args_into_dataclasses()
 
-    if os.path.isfile(codalab_args.output_path):
-        raise RuntimeError("file `{}` already exists".format(codalab_args.output_path))
+    if os.path.isfile(prediction_output_args.output_path):
+        raise RuntimeError("file `{}` already exists".format(prediction_output_args.output_path))
 
     # Initialize config
     config = AutoConfig.from_pretrained(
-        codalab_args.model_path,
-        cache_dir=codalab_args.cache_dir,
+        prediction_output_args.model_path,
+        cache_dir=prediction_output_args.cache_dir,
         max_length=data_training_args.max_target_length,
         num_beams=data_training_args.num_beams,
         num_beam_groups=data_training_args.num_beam_groups,
@@ -82,8 +82,8 @@ def main():
 
     # Initialize tokenizer
     tokenizer = AutoTokenizer.from_pretrained(
-        codalab_args.model_path,
-        cache_dir=codalab_args.cache_dir,
+        prediction_output_args.model_path,
+        cache_dir=prediction_output_args.cache_dir,
         use_fast=True,
     )
 
@@ -99,69 +99,63 @@ def main():
 
         # Initialize model
         model = model_cls_wrapper(AutoModelForSeq2SeqLM).from_pretrained(
-            codalab_args.model_path,
+            prediction_output_args.model_path,
             config=config,
-            cache_dir=codalab_args.cache_dir,
+            cache_dir=prediction_output_args.cache_dir,
         )
 
-        if codalab_args.conversational:
-            conversational_text2sql(model, tokenizer, codalab_args, data_training_args)
+        if prediction_output_args.conversational:
+            conversational_text2sql(model, tokenizer, prediction_output_args, data_training_args)
         else:
-            text2sql(model, tokenizer, codalab_args, data_training_args)
+            text2sql(model, tokenizer, prediction_output_args, data_training_args)
 
 
 def get_pipeline_kwargs(
-    model, tokenizer: AutoTokenizer, codalab_args: CodalabArguments, data_training_args: DataTrainingArguments
+    model, tokenizer: AutoTokenizer, prediction_output_args: PredictionOutputArguments, data_training_args: DataTrainingArguments
 ) -> dict:
     return {
         "model": model,
         "tokenizer": tokenizer,
-        "db_path": codalab_args.db_path,
+        "db_path": prediction_output_args.db_path,
         "prefix": data_training_args.source_prefix,
         "normalize_query": data_training_args.normalize_query,
         "schema_serialization_type": data_training_args.schema_serialization_type,
         "schema_serialization_with_db_id": data_training_args.schema_serialization_with_db_id,
         "schema_serialization_with_db_content": data_training_args.schema_serialization_with_db_content,
-        "device": codalab_args.device,
+        "device": prediction_output_args.device,
     }
 
 
-def text2sql(model, tokenizer, codalab_args, data_training_args):
+def text2sql(model, tokenizer, prediction_output_args, data_training_args):
     # Initalize generation pipeline
-    pipe = Text2SQLGenerationPipeline(**get_pipeline_kwargs(model, tokenizer, codalab_args, data_training_args))
+    pipe = Text2SQLGenerationPipeline(**get_pipeline_kwargs(model, tokenizer, prediction_output_args, data_training_args))
 
-    with open(codalab_args.inputs_path) as fp:
+    with open(prediction_output_args.inputs_path) as fp:
         questions = json.load(fp)
 
     with alive_bar(len(questions)) as bar:
         for question in questions:
             try:
-                outputs = pipe(
-                    inputs=question["question"],
-                    db_id=question["db_id"],
-                    num_beams=data_training_args.num_beams,
-                    num_beam_groups=data_training_args.num_beam_groups,
-                    diversity_penalty=data_training_args.diversity_penalty,
-                )
+                outputs = pipe(inputs=Text2SQLInput(question["question"],question["db_id"]))
                 output = outputs[0]
                 query = output["generated_text"]
             except Exception as e:
                 logger.error(e)
                 query = ""
-            logger.info("writing `{}` to `{}`".format(query, codalab_args.output_path))
+            logger.info("writing `{}` to `{}`".format(query, prediction_output_args.output_path))
             bar.text(query)
-            bar(incr=1)
-            with open(codalab_args.output_path, "a") as fp:
+            bar()
+            with open(prediction_output_args.output_path, "a") as fp:
                 fp.write(query + "\n")
 
 
-def conversational_text2sql(model, tokenizer, codalab_args, data_training_args):
+def conversational_text2sql(model, tokenizer, prediction_output_args, data_training_args):
     # Initalize generation pipeline
     pipe = ConversationalText2SQLGenerationPipeline(
-        **get_pipeline_kwargs(model, tokenizer, codalab_args, data_training_args)
+        **get_pipeline_kwargs(model, tokenizer, prediction_output_args, data_training_args)
     )
 
-    with open(codalab_args.inputs_path) as fp:
+    with open(prediction_output_args.inputs_path) as fp:
         conversations = json.load(fp)
 
     length = sum(len(conversation["interaction"]) for conversation in conversations)
@@ -172,24 +166,21 @@ def conversational_text2sql(model, tokenizer, codalab_args, data_training_args):
                 utterances.extend((utterance.strip() for utterance in turn["utterance"].split(sep="|")))
                 try:
                     outputs = pipe(
-                        inputs=list(utterances),
-                        db_id=conversation["database_id"],
-                        num_beams=data_training_args.num_beams,
-                        num_beam_groups=data_training_args.num_beam_groups,
-                        diversity_penalty=data_training_args.diversity_penalty,
+                        inputs=ConversationalText2SQLInput(list(utterances),
+                        db_id=conversation["database_id"])
                     )
                     output = outputs[0]
                     query = output["generated_text"]
                 except Exception as e:
                     logger.error(e)
                     query = ""
-                logger.info("writing `{}` to `{}`".format(query, codalab_args.output_path))
+                logger.info("writing `{}` to `{}`".format(query, prediction_output_args.output_path))
                 bar.text(query)
-                bar(incr=1)
-                with open(codalab_args.output_path, "a") as fp:
+                bar()
+                with open(prediction_output_args.output_path, "a") as fp:
                     fp.write(query + "\n")
 
-            with open(codalab_args.output_path, "a") as fp:
+            with open(prediction_output_args.output_path, "a") as fp:
                 fp.write("\n")
 
 
