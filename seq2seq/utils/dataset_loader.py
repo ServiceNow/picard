@@ -16,14 +16,16 @@ from seq2seq.utils.dataset import (
     _prepare_train_split,
     prepare_splits,
 )
-from seq2seq.utils.spider import spider_add_serialized_schema, spider_pre_process_function
-from seq2seq.utils.cosql import cosql_add_serialized_schema, cosql_pre_process_function
+#from seq2seq.utils.spider import spider_add_serialized_schema, spider_pre_process_function
+#from seq2seq.utils.cosql import cosql_add_serialized_schema, cosql_pre_process_function
+from seq2seq.utils.lc_quad import lc_quad_pre_process_function
 
 logger = logging.getLogger(__name__)
 
 
 def _log_duplicate_count(dataset: Dataset, dataset_name: str, split: str) -> None:
     d = dataset.to_dict()
+    d_t = []
     d_t = [tuple((k, tuple(v)) for k, v in zip(d.keys(), vs)) for vs in zip(*d.values())]
     d_t_ = set(d_t)
     num_examples = len(d_t)
@@ -47,10 +49,10 @@ def load_dataset(
     _spider_metric: Callable[[], Metric] = lambda: datasets.load.load_metric(
         path=data_args.metric_paths["spider"], config_name=data_args.metric_config, test_suite_db_dir=data_args.test_suite_db_dir
     )
-    _spider_add_serialized_schema = lambda ex: spider_add_serialized_schema(
-        ex=ex,
-        data_training_args=data_training_args,
-    )
+    #_spider_add_serialized_schema = lambda ex: spider_add_serialized_schema(
+    #    ex=ex,
+    #    data_training_args=data_training_args,
+    #)
     _spider_pre_process_function = lambda batch, max_source_length, max_target_length: spider_pre_process_function(
         batch=batch,
         max_source_length=max_source_length,
@@ -65,10 +67,10 @@ def load_dataset(
     _cosql_metric: Callable[[], Metric] = lambda: datasets.load.load_metric(
         path=data_args.metric_paths["cosql"], config_name=data_args.metric_config, test_suite_db_dir=data_args.test_suite_db_dir
     )
-    _cosql_add_serialized_schema = lambda ex: cosql_add_serialized_schema(
-        ex=ex,
-        data_training_args=data_training_args,
-    )
+    #_cosql_add_serialized_schema = lambda ex: cosql_add_serialized_schema(
+    #    ex=ex,
+    #    data_training_args=data_training_args,
+    #)
     _cosql_pre_process_function = lambda batch, max_source_length, max_target_length: cosql_pre_process_function(
         batch=batch,
         max_source_length=max_source_length,
@@ -98,6 +100,29 @@ def load_dataset(
         path=data_args.metric_paths["spider_dk"], config_name=data_args.metric_config, test_suite_db_dir=data_args.test_suite_db_dir
     )
 
+# lc_quad dataset
+    _lc_quad_dataset_dict : Callable[[], DatasetDict] = lambda: datasets.load.load_dataset(
+        path=data_args.dataset_paths['lc_quad'], cache_dir=model_args.cache_dir
+    )
+    _lc_quad_metric: Callable[[], Metric] = lambda: datasets.load.load_metric(
+        path=data_args.metric_paths["lc_quad"], config_name=data_args.metric_config, test_suite_db_dir=data_args.test_suite_db_dir
+    )
+
+    #_lc_quad_add_serialized_schema = lambda ex:lc_quad_add_serialized_schema(
+    #    ex=ex,
+    #    data_training_args=data_training_args,
+    #)
+    _lc_quad_pre_process_function = lambda batch, max_source_length, max_target_length: lc_quad_pre_process_function(
+        batch=batch,
+        max_source_length=max_source_length,
+        max_target_length=max_target_length,
+        data_training_args=data_training_args,
+        tokenizer=tokenizer,
+    )
+
+   
+
+
     _prepare_splits_kwargs = {
         "data_args": data_args,
         "training_args": training_args,
@@ -120,11 +145,19 @@ def load_dataset(
             pre_process_function=_cosql_pre_process_function,
             **_prepare_splits_kwargs,
         )
+    elif data_args.dataset == "lc_quad":
+        metric = _lc_quad_metric()
+        dataset_splits = prepare_splits(
+            dataset_dict=_lc_quad_dataset_dict(),
+            #add_serialized_schema=_lc_quad_add_serialized_schema,
+            pre_process_function=_lc_quad_pre_process_function,
+            **_prepare_splits_kwargs,
+        )
     elif data_args.dataset == "spider_realistic":
         metric = _spider_realistic_metric()
         dataset_splits = prepare_splits(
             dataset_dict= _spider_realistic_dataset_dict(),
-            add_serialized_schema=_spider_add_serialized_schema,
+            #add_serialized_schema=_spider_add_serialized_schema,
             pre_process_function=_spider_pre_process_function,
             **_prepare_splits_kwargs,
         )
@@ -132,7 +165,7 @@ def load_dataset(
         metric = _spider_dk_metric()
         dataset_splits = prepare_splits(
             dataset_dict= _spider_dk_dataset_dict(),
-            add_serialized_schema=_spider_add_serialized_schema,
+            #add_serialized_schema=_spider_add_serialized_schema,
             pre_process_function=_spider_pre_process_function,
             **_prepare_splits_kwargs,
         )
@@ -140,7 +173,7 @@ def load_dataset(
         metric = _spider_syn_metric()
         dataset_splits = prepare_splits(
             dataset_dict= _spider_syn_dataset_dict(),
-            add_serialized_schema=_spider_add_serialized_schema,
+            #add_serialized_schema=_spider_add_serialized_schema,
             pre_process_function=_spider_pre_process_function,
             **_prepare_splits_kwargs,
         )
@@ -148,7 +181,7 @@ def load_dataset(
         metric = _cosql_metric()
         cosql_dataset_splits = prepare_splits(
             dataset_dict=_cosql_dataset_dict(),
-            add_serialized_schema=_cosql_add_serialized_schema,
+            #add_serialized_schema=_cosql_add_serialized_schema,
             pre_process_function=_cosql_pre_process_function,
             **_prepare_splits_kwargs,
         )
@@ -156,7 +189,7 @@ def load_dataset(
             _prepare_train_split(
                 dataset=_spider_dataset_dict()["train"],
                 data_training_args=data_training_args,
-                add_serialized_schema=_spider_add_serialized_schema,
+                #add_serialized_schema=_spider_add_serialized_schema,
                 pre_process_function=_spider_pre_process_function,
             )
             if training_args.do_train
@@ -189,12 +222,12 @@ def load_dataset(
     else:
         raise NotImplementedError()
 
-    if dataset_splits.train_split is not None:
-        _log_duplicate_count(dataset=dataset_splits.train_split.dataset, dataset_name=data_args.dataset, split="train")
-    if dataset_splits.eval_split is not None:
-        _log_duplicate_count(dataset=dataset_splits.eval_split.dataset, dataset_name=data_args.dataset, split="eval")
-    if dataset_splits.test_splits is not None:
-        for section, split in dataset_splits.test_splits.items():
-            _log_duplicate_count(dataset=split.dataset, dataset_name=data_args.dataset, split=section)
+    #if dataset_splits.train_split is not None:
+    #    _log_duplicate_count(dataset=dataset_splits.train_split.dataset, dataset_name=data_args.dataset, split="train")
+    #if dataset_splits.eval_split is not None:
+    #    _log_duplicate_count(dataset=dataset_splits.eval_split.dataset, dataset_name=data_args.dataset, split="eval")
+    #if dataset_splits.test_splits is not None:
+    #    for section, split in dataset_splits.test_splits.items():
+    #        _log_duplicate_count(dataset=split.dataset, dataset_name=data_args.dataset, split=section)
 
     return metric, dataset_splits
