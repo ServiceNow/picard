@@ -87,7 +87,7 @@ def main() -> None:
         if "MLFLOW_EXPERIMENT_ID" in os.environ:
             init_args["group"] = os.environ["MLFLOW_EXPERIMENT_ID"]
         wandb.init(
-            project=os.getenv("WANDB_PROJECT", "text-to-sql"),
+            project=os.getenv("WANDB_PROJECT", "text-to-sparql"),
             name=training_args.run_name,
             **init_args,
         )

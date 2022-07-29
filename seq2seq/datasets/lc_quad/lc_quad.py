@@ -22,7 +22,7 @@ LC-QuAD 2.0 is a Large Question Answering dataset with 30,000 pairs of question 
 _URL = "https://github.com/AskNowQA/LC-QuAD2.0/archive/master.zip"
 
 
-class LcQuad(datasets.GeneratorBasedBuilder):
+class LC_QuAD(datasets.GeneratorBasedBuilder):
     """TODO(lc_quad): Short description of my dataset."""
 
     # TODO(lc_quad): Set up version.
@@ -84,12 +84,12 @@ class LcQuad(datasets.GeneratorBasedBuilder):
         with open(filepath, encoding="utf-8") as f:
             data = json.load(f)
             for id_, row in enumerate(data):
-                is_list = False
-                for key in row:
-                    if key != "answer" and isinstance(row[key], list):
-                        is_list = True
-                if is_list:
-                    continue
+                # is_list = False
+                # for key in row:
+                #     if key != "answer" and isinstance(row[key], list):
+                #         is_list = True
+                # if is_list:
+                #     continue
                 yield id_, {
                     "NNQT_question": row["NNQT_question"],
                     "uid": row["uid"],

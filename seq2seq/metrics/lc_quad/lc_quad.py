@@ -2,8 +2,11 @@
 
 from typing import Optional, Union
 from sacrebleu.metrics import BLEU
+from seq2seq.metrics.lc_quad.lc_quad_accuracy import compute_accuracy_metric
+from seq2seq.metrics.lc_quad.lc_quad_sacrebleu import compute_sacrebleu_metric
+from seq2seq.metrics.lc_quad.lc_quad_query_match import compute_query_match_metric
+from seq2seq.metrics.lc_quad.lc_quad_f1 import compute_f1_metric
 import datasets
-import re
 
 
 _DESCRIPTION = """
@@ -14,27 +17,13 @@ _KWARGS_DESCRIPTION = """
 """
 
 _CITATION = """\
-@article{yu2018spider,
-  title={Spider: A large-scale human-labeled dataset for complex and cross-domain semantic parsing and text-to-sql task},
-  author={Yu, Tao and Zhang, Rui and Yang, Kai and Yasunaga, Michihiro and Wang, Dongxu and Li, Zifan and Ma, James and Li, Irene and Yao, Qingning and Roman, Shanelle and others},
-  journal={arXiv preprint arXiv:1809.08887},
-  year={2018}
-}
-@misc{zhong2020semantic,
-  title={Semantic Evaluation for Text-to-SQL with Distilled Test Suites}, 
-  author={Ruiqi Zhong and Tao Yu and Dan Klein},
-  year={2020},
-  eprint={2010.02840},
-  archivePrefix={arXiv},
-  primaryClass={cs.CL}
-}
 """
 
 _URL = "https://drive.google.com/uc?export=download&id=1_AckYkinAnhqmRQtGsQgUKAnTHxxX5J0"
 
 
 @datasets.utils.file_utils.add_start_docstrings(_DESCRIPTION, _KWARGS_DESCRIPTION)
-class QUADIntent(datasets.Metric):
+class LC_QuAD(datasets.Metric):
     def __init__(
         self,
         config_name: Optional[str] = None,
@@ -80,27 +69,10 @@ class QUADIntent(datasets.Metric):
                 {
                     "predictions": datasets.Value("string"),
                     "references": {
-                        #"intent": datasets.Value("string"),
-                        #"utterances": datasets.Value("string"),
                         "query": datasets.Value("string"),
                         "question": datasets.Value("string"),
                         "context": datasets.Value("string"),
                         "label": datasets.Value("string"),
-                        #"db_id": datasets.Value("string"),
-                        #"db_path": datasets.Value("string"),
-                        #"db_table_names": datasets.features.Sequence(datasets.Value("string")),
-                        #"db_column_names": datasets.features.Sequence(
-                        #    {
-                        #        "table_id": datasets.Value("int32"),
-                        #        "column_name": datasets.Value("string"),
-                        #    }
-                        #),
-                        #"db_foreign_keys": datasets.features.Sequence(
-                        #    {
-                        #        "column_id": datasets.Value("int32"),
-                        #        "other_column_id": datasets.Value("int32"),
-                        #    }
-                        #),
                     },
                 }
             ),
@@ -108,37 +80,16 @@ class QUADIntent(datasets.Metric):
         )
 
     def _compute(self, predictions, references):
-        if  self.config_name == "both" or self.config_name == "accuracy":
-            bleu = self._compute_bleu_metric(predictions, references)
-            acc = self._compute_accuracy_metric(predictions, references)
+        if self.config_name == "both":
+            query_match = compute_query_match_metric(predictions, references)
+            f1 = compute_f1_metric(predictions, references)
+            bleu = compute_sacrebleu_metric(predictions, references)
+            acc = compute_accuracy_metric(predictions, references)
         else:
+            query_match = dict()
             bleu = dict()
             acc = dict()
+            f1 = dict()
 
-        return {**bleu, **acc}
+        return {**query_match, **bleu, **acc, **f1}
 
-    def _compute_bleu_metric(self, predictions, references):
-        
-        pres = [prediction for prediction in predictions]
-        refs = [reference["label"] for reference in references]
-        
-        bleu_score = self.bleu.corpus_score(pres, [refs])
-
-        return {
-            "bleu": float(bleu_score.score),
-        }
-
-    def _compute_accuracy_metric(self, predictions, references):
-        acc = 0
-        total = len(predictions)
-
-        for prediction, reference in zip(predictions, references):
-            consice_p = re.sub('[\W_]+', '', prediction.replace(' ', ''))
-            consice_r = re.sub('[\W_]+', '', reference["label"].replace(' ', ''))
-            
-            if consice_p == consice_r:
-                acc +=1
-        
-        return {
-            "accuracy": float(acc/total),
-        }
