@@ -20,9 +20,13 @@ from transformers.models.auto import AutoConfig, AutoTokenizer, AutoModelForSeq2
 from fastapi import FastAPI, HTTPException
 from uvicorn import run
 from sqlite3 import Connection, connect, OperationalError
-from seq2seq.utils.pipeline import Text2SQLGenerationPipeline, Text2SQLInput, get_schema
+from seq2seq.utils.pipeline import (Text2SQLGenerationPipeline, Text2SQLInput, get_schema, get_schema_for_display,
+    get_db_file_path)
 from seq2seq.utils.picard_model_wrapper import PicardArguments, PicardLauncher, with_picard
 from seq2seq.utils.dataset import DataTrainingArguments
+import sqlite3
+from pathlib import Path
+from typing import List
 
 
 @dataclass
@@ -128,7 +132,7 @@ def main():
                     status_code=500, detail=f'while executing "{query}", the following error occurred: {e.args[0]}'
                 )
 
-        @app.get("/ask/{db_id}/{question}")
+        @app.get("/ask/")
         def ask(db_id: str, question: str):
             try:
                 outputs = pipe(
@@ -143,9 +147,31 @@ def main():
             finally:
                 conn.close()
 
+        @app.get("/schema/")
+        def schema_list_get():
+            db_dir = Path(pipe.db_path)
+            print(f'db_path - {db_dir}')
+            db_files = db_dir.glob("*.sqlite")
+            return [db_file.stem for db_file in db_files if db_file.stem == db_file.parent.stem]
+
+        @app.get("/schema/{db_id}")
+        def schema_get(db_id):
+            return get_schema(pipe.db_path, db_id)
+
+
+        @app.post("/schema/{db_id}")
+        def schema_post(db_id, queries: List[str]):
+            db_file_path = get_db_file_path(pipe.db_path, db_id)
+            if os.path.exists(db_file_path):
+                raise HTTPException(status_code=409, detail="database already exists")
+
+            con = sqlite3.connect(db_file_path)
+        
+
         # Run app
         run(app=app, host=backend_args.host, port=backend_args.port)
 
 
 if __name__ == "__main__":
+    print('serving....')
     main()

@@ -100,7 +100,7 @@ build-eval-image:
 
 .PHONY: pull-eval-image
 pull-eval-image:
-	docker pull tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF)
+	docker pull tscholak/text-to-sql-eval:6a252386bed6d4233f0f13f4562d8ae8608e7445
 
 .PHONY: train
 train: pull-train-image

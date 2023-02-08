@@ -116,14 +116,15 @@ class Text2SQLGenerationPipeline(Text2TextGenerationPipeline):
             del encodings["token_type_ids"]
         return encodings
 
-    def get_schema(self, db_id):
+
+    def get_schema_from_cache(self, db_id):
         if db_id not in self.schema_cache:
             self.schema_cache[db_id] = get_schema(db_path=self.db_path, db_id=db_id)
         return self.schema_cache[db_id]
 
     def _pre_process(self, input: Text2SQLInput) -> str:
         prefix = self.prefix if self.prefix is not None else ""
-        schema = self.get_schema(input.db_id)
+        schema = self.get_schema_from_cache(input.db_id)
         if hasattr(self.model, "add_schema"):
             self.model.add_schema(db_id=input.db_id, db_info=schema)
         serialized_schema = serialize_schema(
@@ -268,8 +269,9 @@ class ConversationalText2SQLGenerationPipeline(Text2TextGenerationPipeline):
 
     def _pre_process(self, input: ConversationalText2SQLInput) -> str:
         prefix = self.prefix if self.prefix is not None else ""
-        if input.db_id not in self.schema_cache:
-            self.schema_cache[input.db_id] = get_schema(db_path=self.db_path, db_id=input.db_id)
+        # if input.db_id not in self.schema_cache:
+        #     self.schema_cache[input.db_id] = get_schema(db_path=self.db_path, db_id=input.db_id)
+        schema = self.get_schema_from_cache(input.db_id)
         schema = self.schema_cache[input.db_id]
         if hasattr(self.model, "add_schema"):
             self.model.add_schema(db_id=input.db_id, db_info=schema)
@@ -305,6 +307,8 @@ class ConversationalText2SQLGenerationPipeline(Text2TextGenerationPipeline):
             records.append(record)
         return records
 
+def get_db_file_path(db_path: str, db_id: str) -> str:
+    return db_path + "/" + db_id + "/" + db_id + ".sqlite"
 
 def get_schema(db_path: str, db_id: str) -> dict:
     db_file_path = db_path + "/" + db_id + "/" + db_id + ".sqlite"
@@ -323,3 +327,8 @@ def get_schema(db_path: str, db_id: str) -> dict:
             "other_column_id": [other_column_id for _, other_column_id in schema["foreign_keys"]],
         },
     }
+
+def get_schema_for_display(db_path: str, db_id: str) -> dict:
+    db_file_path = db_path + "/" + db_id + "/" + db_id + ".sqlite"
+    schema = dump_db_json_schema(db_file_path, db_id)
+    return schema
