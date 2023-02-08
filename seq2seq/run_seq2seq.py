@@ -1,5 +1,6 @@
 # Set up logging
 import sys
+sys.path.append('.')
 import logging
 
 logging.basicConfig(
@@ -140,6 +141,7 @@ def main() -> None:
         tokenizer.add_tokens([AddedToken(" <="), AddedToken(" <")])
 
     # Load dataset
+    logger.info('loading dataset...')
     metric, dataset_splits = load_dataset(
         data_args=data_args,
         model_args=model_args,
@@ -147,6 +149,7 @@ def main() -> None:
         training_args=training_args,
         tokenizer=tokenizer,
     )
+    logger.info('loading dataset complete')
 
     # Initialize Picard if necessary
     with PicardLauncher() if picard_args.launch_picard and training_args.local_rank <= 0 else nullcontext(None):
