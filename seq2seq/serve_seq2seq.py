@@ -148,19 +148,19 @@ def main():
                 conn.close()
 
         @app.get("/database/")
-        def database_list_get():
+        def get_database_list():
             db_dir = Path(pipe.db_path)
             print(f'db_path - {db_dir}')
             db_files = db_dir.rglob("*.sqlite")
             return [db_file.stem for db_file in db_files if db_file.stem == db_file.parent.stem]
 
         @app.get("/schema/{db_id}")
-        def schema_get(db_id):
+        def get_schema_for_database(db_id):
             return get_schema(pipe.db_path, db_id)
 
 
         @app.post("/schema/{db_id}")
-        def schema_post(db_id, queries: List[str]):
+        def create_schema(db_id, queries: List[str]):
             db_file_path = Path(get_db_file_path(pipe.db_path, db_id))
 
             if db_file_path.exists():
@@ -170,6 +170,28 @@ def main():
             db_file_path.parent.mkdir(parents=True, exist_ok=True)
 
             print(f'creating database {db_file_path.as_posix()}...')
+            
+            con = sqlite3.connect(db_file_path.as_posix())
+            cur = con.cursor()
+            try:
+                for query in queries:
+                    cur.execute(query)
+                con.commit()
+            except OperationalError as e:
+                raise HTTPException(status_code=400, detail=e.args[0])
+            finally:
+                con.close()
+            
+            return get_schema(pipe.db_path, db_id)
+
+        @app.patch("/schema/{db_id}")
+        def update_schema(db_id, queries: List[str]):
+            db_file_path = Path(get_db_file_path(pipe.db_path, db_id))
+
+            if not db_file_path.exists():
+                raise HTTPException(status_code=404, detail="database not found")
+
+            print(f'updating database {db_file_path.as_posix()}...')
             
             con = sqlite3.connect(db_file_path.as_posix())
             cur = con.cursor()
