@@ -147,11 +147,11 @@ def main():
             finally:
                 conn.close()
 
-        @app.get("/schema/")
-        def schema_list_get():
+        @app.get("/database/")
+        def database_list_get():
             db_dir = Path(pipe.db_path)
             print(f'db_path - {db_dir}')
-            db_files = db_dir.glob("*.sqlite")
+            db_files = db_dir.rglob("*.sqlite")
             return [db_file.stem for db_file in db_files if db_file.stem == db_file.parent.stem]
 
         @app.get("/schema/{db_id}")
@@ -161,11 +161,29 @@ def main():
 
         @app.post("/schema/{db_id}")
         def schema_post(db_id, queries: List[str]):
-            db_file_path = get_db_file_path(pipe.db_path, db_id)
-            if os.path.exists(db_file_path):
+            db_file_path = Path(get_db_file_path(pipe.db_path, db_id))
+
+            if db_file_path.exists():
                 raise HTTPException(status_code=409, detail="database already exists")
 
-            con = sqlite3.connect(db_file_path)
+            # create parent directory if it doesn't exist
+            db_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+            print(f'creating database {db_file_path.as_posix()}...')
+            
+            con = sqlite3.connect(db_file_path.as_posix())
+            cur = con.cursor()
+            try:
+                for query in queries:
+                    cur.execute(query)
+                con.commit()
+            except OperationalError as e:
+                raise HTTPException(status_code=400, detail=e.args[0])
+            finally:
+                con.close()
+            
+            return get_schema(pipe.db_path, db_id)
+
         
 
         # Run app
