@@ -14,6 +14,11 @@ class Text2SQLInput(object):
     utterance: str
     db_id: str
 
+@dataclass
+class QuestionWithSchemaInput(object):
+    utterance: str
+    schema: str
+
 
 class Text2SQLGenerationPipeline(Text2TextGenerationPipeline):
     """
@@ -35,7 +40,7 @@ class Text2SQLGenerationPipeline(Text2TextGenerationPipeline):
     """
 
     def __init__(self, *args, **kwargs):
-        self.db_path: str = kwargs.pop("db_path")
+        self.db_path: str = kwargs.pop("db_path", None)
         self.prefix: Optional[str] = kwargs.pop("prefix", None)
         self.normalize_query: bool = kwargs.pop("normalize_query", True)
         self.schema_serialization_type: str = kwargs.pop("schema_serialization_type", "peteshaw")
@@ -74,6 +79,7 @@ class Text2SQLGenerationPipeline(Text2TextGenerationPipeline):
               -- The token ids of the generated SQL.
         """
         result = super().__call__(inputs, *args, **kwargs)
+        print(f'with db output is :{result}')
         if (
             isinstance(inputs, list)
             and all(isinstance(el, Text2SQLInput) for el in inputs)
@@ -139,7 +145,9 @@ class Text2SQLGenerationPipeline(Text2TextGenerationPipeline):
             schema_serialization_with_db_content=self.schema_serialization_with_db_content,
             normalize_query=self.normalize_query,
         )
-        return spider_get_input(question=input.utterance, serialized_schema=serialized_schema, prefix=prefix)
+        spider_input = spider_get_input(question=input.utterance, serialized_schema=serialized_schema, prefix=prefix)
+        print(f'spider input is:{spider_input}')
+        return spider_input
 
     def postprocess(self, model_outputs: dict, return_type=ReturnType.TEXT, clean_up_tokenization_spaces=False):
         records = []
@@ -158,6 +166,92 @@ class Text2SQLGenerationPipeline(Text2TextGenerationPipeline):
                 }
             records.append(record)
         return records
+
+class Text2SQLGenPipelineWithSchema(Text2SQLGenerationPipeline):
+    """
+    Pipeline for text-to-SQL generation using seq2seq models. Here Database schema is passed along with query
+
+    model = AutoModelForSeq2SeqLM.from_pretrained(...)
+    tokenizer = AutoTokenizer.from_pretrained(...)
+    db_path = ... path to "concert_singer" parent folder
+    text2sql_generator = Text2SQLGenerationPipeline(
+        model=model,
+        tokenizer=tokenizer,
+    )
+    text2sql_generator(inputs=Text2SQLInput(utterance="How many singers do we have?", db_id="concert_singer"))
+    """
+    def __init__(self, *args, **kwargs):
+        self.normalize_query: bool = kwargs.pop("normalize_query", True)
+        super().__init__(*args, **kwargs)
+
+    def _pre_process(self, input: QuestionWithSchemaInput) -> str:
+        # prefix = self.prefix if self.prefix is not None else ""
+        spider_input = spider_get_input(question=input.utterance, serialized_schema=input.schema, prefix='')
+        print(f'spider input is :{spider_input}')
+        return spider_input
+
+    def __call__(self, inputs: Union[QuestionWithSchemaInput, List[QuestionWithSchemaInput]], *args, **kwargs):
+        r"""
+        Generate the output SQL expression(s) using text(s) given as inputs.
+
+        Args:
+            inputs (:obj:`Text2SQLInput` or :obj:`List[Text2SQLInput]`):
+                Input text(s) for the encoder.
+            return_tensors (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether or not to include the tensors of predictions (as token indices) in the outputs.
+            return_text (:obj:`bool`, `optional`, defaults to :obj:`True`):
+                Whether or not to include the decoded texts in the outputs.
+            clean_up_tokenization_spaces (:obj:`bool`, `optional`, defaults to :obj:`False`):
+                Whether or not to clean up the potential extra spaces in the text output.
+            truncation (:obj:`TruncationStrategy`, `optional`, defaults to :obj:`TruncationStrategy.DO_NOT_TRUNCATE`):
+                The truncation strategy for the tokenization within the pipeline.
+                :obj:`TruncationStrategy.DO_NOT_TRUNCATE` (default) will never truncate, but it is sometimes desirable
+                to truncate the input to fit the model's max_length instead of throwing an error down the line.
+            generate_kwargs:
+                Additional keyword arguments to pass along to the generate method of the model (see the generate method
+                corresponding to your framework `here <./model.html#generative-models>`__).
+
+        Return:
+            A list or a list of list of :obj:`dict`: Each result comes as a dictionary with the following keys:
+
+            - **generated_sql** (:obj:`str`, present when ``return_text=True``) -- The generated SQL.
+            - **generated_token_ids** (:obj:`torch.Tensor` or :obj:`tf.Tensor`, present when ``return_tensors=True``)
+              -- The token ids of the generated SQL.
+        """
+        result = super().__call__(inputs, *args, **kwargs)
+        print(f'with schema output is :{result}')
+        if (
+            isinstance(inputs, list)
+            and all(isinstance(el, QuestionWithSchemaInput) for el in inputs)
+            and all(len(res) == 1 for res in result)
+        ):
+            return [res[0] for res in result]
+        return result
+
+    # no changes from parent class other than input type
+    def _parse_and_tokenize(
+        self,
+        inputs: Union[QuestionWithSchemaInput, List[QuestionWithSchemaInput]],
+        *args,
+        truncation: TruncationStrategy
+    ) -> BatchEncoding:
+        if isinstance(inputs, list):
+            if self.tokenizer.pad_token_id is None:
+                raise ValueError("Please make sure that the tokenizer has a pad_token_id when using a batch input")
+            inputs = [self._pre_process(input=input) for input in inputs]
+            padding = True
+        elif isinstance(inputs, QuestionWithSchemaInput):
+            inputs = self._pre_process(input=inputs)
+            padding = False
+        else:
+            raise ValueError(
+                f" `inputs`: {inputs} have the wrong format. The should be either of type `Text2SQLInput` or type `List[Text2SQLInput]`"
+            )
+        encodings = self.tokenizer(inputs, padding=padding, truncation=truncation, return_tensors=self.framework)
+        # This is produced by tokenizers but is an invalid generate kwargs
+        if "token_type_ids" in encodings:
+            del encodings["token_type_ids"]
+        return encodings
 
 
 @dataclass
