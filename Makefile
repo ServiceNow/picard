@@ -67,7 +67,7 @@ build-train-image:
 	docker buildx build 
 		--builder $(BUILDKIT_BUILDER) \
 		--ssh default=$(SSH_AUTH_SOCK) \
-		-f Dockerfile \
+		-f Dockerfile.train \
 		--tag picard \
 		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
 		--target train \
@@ -77,6 +77,7 @@ build-train-image:
 .PHONY: pull-train-image
 pull-train-image:
 	docker pull tscholak/text-to-sql-train:6a252386bed6d4233f0f13f4562d8ae8608e7445
+	docker build . -t picard -f Dockerfile.train
 
 .PHONY: build-eval-image
 build-eval-image:    
