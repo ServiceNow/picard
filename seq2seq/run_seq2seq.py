@@ -128,6 +128,7 @@ def main() -> None:
     )
 
     # Initialize tokenizer
+    logger.warning('loading tokenizer...')
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
@@ -141,7 +142,7 @@ def main() -> None:
         tokenizer.add_tokens([AddedToken(" <="), AddedToken(" <")])
 
     # Load dataset
-    logger.info('loading dataset...')
+    logger.warning('loading dataset...')
     metric, dataset_splits = load_dataset(
         data_args=data_args,
         model_args=model_args,
@@ -149,7 +150,7 @@ def main() -> None:
         training_args=training_args,
         tokenizer=tokenizer,
     )
-    logger.info('loading dataset complete')
+    logger.warning('loading dataset complete')
 
     # Initialize Picard if necessary
     with PicardLauncher() if picard_args.launch_picard and training_args.local_rank <= 0 else nullcontext(None):
@@ -162,6 +163,7 @@ def main() -> None:
             model_cls_wrapper = lambda model_cls: model_cls
 
         # Initialize model
+        logger.warning('loading model...')
         model = model_cls_wrapper(AutoModelForSeq2SeqLM).from_pretrained(
             model_args.model_name_or_path,
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
@@ -198,6 +200,7 @@ def main() -> None:
             "target_with_db_id": data_training_args.target_with_db_id,
         }
         #using spidertrainer as it is.
+        logger.warning(f'initializing trainer...')
         if data_args.dataset in ["spider", "spider_realistic", "spider_syn", "spider_dk"]:
             trainer = SpiderTrainer(**trainer_kwargs)
         elif data_args.dataset in ["cosql", "cosql+spider"]:
@@ -207,7 +210,7 @@ def main() -> None:
 
         # Training
         if training_args.do_train:
-            logger.info("*** Train ***")
+            logger.warning("*** Train ***")
 
             checkpoint = None
 

@@ -6,6 +6,11 @@ from transformers.training_args import TrainingArguments
 from seq2seq.utils.bridge_content_encoder import get_database_matches
 import re
 import random
+import os
+import logging
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -19,7 +24,7 @@ class DataTrainingArguments:
         metadata={"help": "Overwrite the cached training and evaluation sets"},
     )
     preprocessing_num_workers: Optional[int] = field(
-        default=None,
+        default=int(os.cpu_count() * 0.75) if os.cpu_count() is not None else 4, # set to half of the number of CPUs
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
     max_source_length: Optional[int] = field(

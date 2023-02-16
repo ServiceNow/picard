@@ -26,7 +26,7 @@
     "warmup_ratio": 0.0,
     "warmup_steps": 0,
     "seed": 1,
-    "report_to": ["wandb"],
+    "report_to": [],
     "logging_strategy": "steps",
     "logging_first_step": true,
     "logging_steps": 4,

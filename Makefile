@@ -107,6 +107,8 @@ train: pull-train-image
 	docker run \
 		-it \
 		--rm \
+		--name picard \
+		--gpus all \
 		--user 13011:13011 \
 		--mount type=bind,source=$(BASE_DIR)/train,target=/train \
 		--mount type=bind,source=$(BASE_DIR)/transformers_cache,target=/transformers_cache \
