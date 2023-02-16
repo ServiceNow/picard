@@ -112,6 +112,7 @@ train: pull-train-image
 		--mount type=bind,source=$(BASE_DIR)/transformers_cache,target=/transformers_cache \
 		--mount type=bind,source=$(BASE_DIR)/configs,target=/app/configs \
 		--mount type=bind,source=$(BASE_DIR)/wandb,target=/app/wandb \
+		--env WANDB_API_KEY \
 		picard \
 		/bin/bash -c "python seq2seq/run_seq2seq.py configs/train.json"
 
