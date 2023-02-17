@@ -3,4 +3,6 @@ FROM tscholak/text-to-sql-train:6a252386bed6d4233f0f13f4562d8ae8608e7445
 ARG TOOLKIT_USER_ID=13011
 ARG TOOLKIT_GROUP_ID=13011
 
+RUN pip install pynvml
+
 COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID ./seq2seq /app/seq2seq/

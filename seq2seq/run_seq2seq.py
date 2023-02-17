@@ -31,10 +31,11 @@ from seq2seq.utils.dataset import DataTrainingArguments, DataArguments
 from seq2seq.utils.dataset_loader import load_dataset
 from seq2seq.utils.spider import SpiderTrainer
 from seq2seq.utils.cosql import CoSQLTrainer
+from seq2seq.utils.trainer import print_gpu_utilization
 
 
 def main() -> None:
-    # See all possible arguments by passing the --help flag to this script.
+    # See all possible arguments by passing the --help flag to this script.    
     parser = HfArgumentParser(
         (PicardArguments, ModelArguments, DataArguments, DataTrainingArguments, Seq2SeqTrainingArguments)
     )
@@ -172,6 +173,9 @@ def main() -> None:
             revision=model_args.model_revision,
             use_auth_token=True if model_args.use_auth_token else None,
         )
+        print_gpu_utilization()
+
+
         if isinstance(model, T5ForConditionalGeneration):
             model.resize_token_embeddings(len(tokenizer))
 
@@ -200,7 +204,6 @@ def main() -> None:
             "target_with_db_id": data_training_args.target_with_db_id,
         }
         #using spidertrainer as it is.
-        logger.warning(f'initializing trainer...')
         if data_args.dataset in ["spider", "spider_realistic", "spider_syn", "spider_dk"]:
             trainer = SpiderTrainer(**trainer_kwargs)
         elif data_args.dataset in ["cosql", "cosql+spider"]:
@@ -218,7 +221,7 @@ def main() -> None:
                 checkpoint = training_args.resume_from_checkpoint
             elif last_checkpoint is not None:
                 checkpoint = last_checkpoint
-
+            
             train_result = trainer.train(resume_from_checkpoint=checkpoint)
             trainer.save_model()  # Saves the tokenizer too for easy upload
 
