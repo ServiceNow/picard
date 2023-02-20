@@ -11,8 +11,10 @@ from tenacity import retry, wait_random_exponential, stop_after_delay, before_sl
 import torch
 from transformers import LogitsProcessorList
 from transformers.configuration_utils import PretrainedConfig
-from transformers.generation_utils import GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput
-from transformers.generation_logits_process import LogitsProcessor
+# from transformers.generation_utils import  GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput
+from transformers.generation import GreedySearchEncoderDecoderOutput, SampleEncoderDecoderOutput, BeamSearchEncoderDecoderOutput, BeamSampleEncoderDecoderOutput
+# from transformers.generation_logits_process import LogitsProcessor
+from transformers import LogitsProcessor
 from transformers.file_utils import copy_func
 from transformers.models.auto.auto_factory import _get_model_class
 from transformers.models.auto.configuration_auto import AutoConfig
@@ -158,7 +160,8 @@ def with_picard(
         logits_processor: Optional[LogitsProcessorList] = LogitsProcessorList(),
         eos_token_id: Optional[int] = None,
         **kwargs,
-    ) -> Union[GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput, torch.LongTensor]:
+    ) -> Union[GreedySearchEncoderDecoderOutput, SampleEncoderDecoderOutput, BeamSearchEncoderDecoderOutput, 
+        BeamSampleEncoderDecoderOutput, torch.LongTensor]:
         eos_token_id = eos_token_id if eos_token_id is not None else self.config.eos_token_id
 
         logits_processor.append(

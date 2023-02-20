@@ -1,8 +1,62 @@
-FROM tscholak/text-to-sql-train:6a252386bed6d4233f0f13f4562d8ae8608e7445
+# FROM tscholak/text-to-sql-train:6a252386bed6d4233f0f13f4562d8ae8608e7445
+# with this Dockerfile, train started fine, but unkown error due to deepspeed cpu offload
+
+ARG BASE_IMAGE
+
+# ------------------------
+# Target: dev
+# ------------------------
+FROM $BASE_IMAGE as dev
 
 ARG TOOLKIT_USER_ID=13011
 ARG TOOLKIT_GROUP_ID=13011
 
-RUN pip install pynvml
+RUN apt-get update \
+    # Required to save git hashes
+    && apt-get install -y -q git curl unzip make gettext \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID ./seq2seq /app/seq2seq/
+ENV XDG_DATA_HOME=/app/.local/share \
+    XDG_CACHE_HOME=/app/.cache \
+    XDG_BIN_HOME=/app/.local/bin \
+    XDG_CONFIG_HOME=/app/.config
+RUN mkdir -p $XDG_DATA_HOME \
+    && mkdir -p $XDG_CACHE_HOME \
+    && mkdir -p $XDG_BIN_HOME \
+    && mkdir -p $XDG_CONFIG_HOME \
+    && chown -R $TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID /app
+
+WORKDIR /app
+
+# Misc environment variables
+ENV HF_HOME=/transformers_cache
+
+
+# RUN pip install transformers==4.17.0 datasets pynvml deepspeed tenacity rapidfuzz==2.0.5 nltk==3.7 \
+#     sqlparse==0.4.2 pyarrow==7.0.0
+
+# datasets==1.18.4
+# copy poetry files
+COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID pyproject.toml poetry.lock /app/
+
+RUN pip install poetry && poetry config virtualenvs.create false
+RUN poetry update
+# RUN poetry install
+
+
+RUN git clone https://github.com/microsoft/DeepSpeed/ && \
+    cd DeepSpeed && git checkout v0.8.1 && \
+    rm -rf build && \
+    TORCH_CUDA_ARCH_LIST="8.6" DS_BUILD_CPU_ADAM=1 DS_BUILD_UTILS=1 pip install . \
+    --global-option="build_ext" --global-option="-j8" --no-cache -v \
+    --disable-pip-version-check 
+
+# Copy Seq-to-seq code
+# COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID ./seq2seq /app/seq2seq/
+# COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID ./tests /app/tests/
+# COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID ./third_party/spider /app/third_party/spider/
+# COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID ./third_party/test_suite /app/third_party/test_suite/
+# COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID ./configs /app/configs/
+
+# change permission for /app/.cache
+# RUN mkdir -p /app/.cache && chown  $TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID /app/.cache

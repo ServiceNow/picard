@@ -64,15 +64,16 @@ pull-dev-image:
 
 .PHONY: build-train-image
 build-train-image:
-	docker buildx build 
-		--builder $(BUILDKIT_BUILDER) \
-		--ssh default=$(SSH_AUTH_SOCK) \
-		-f Dockerfile.train \
-		--tag picard \
-		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
-		--target train \
-		--cache-from type=registry,ref=tscholak/$(TRAIN_IMAGE_NAME):cache \
-		--cache-to type=inline 
+	docker build . -f Dockerfile.train -t picard --build-arg BASE_IMAGE=pytorch/pytorch:1.13.1-cuda11.6-cudnn8-devel
+	# docker buildx build 
+	# 	--builder $(BUILDKIT_BUILDER) \
+	# 	--ssh default=$(SSH_AUTH_SOCK) \
+	# 	-f Dockerfile.train \
+	# 	--tag picard \
+	# 	--build-arg BASE_IMAGE=$(BASE_IMAGE) \
+	# 	--target train \
+	# 	--cache-from type=registry,ref=tscholak/$(TRAIN_IMAGE_NAME):cache \
+	# 	--cache-to type=inline 
 
 .PHONY: pull-train-image
 pull-train-image:
@@ -100,7 +101,7 @@ pull-eval-image:
 	docker pull tscholak/text-to-sql-eval:6a252386bed6d4233f0f13f4562d8ae8608e7445
 
 .PHONY: train
-train: pull-train-image
+train: build-train-image
 	mkdir -p -m 777 train
 	mkdir -p -m 777 transformers_cache
 	mkdir -p -m 777 wandb
@@ -116,7 +117,7 @@ train: pull-train-image
 		--mount type=bind,source=$(BASE_DIR)/wandb,target=/app/wandb \
 		--env WANDB_API_KEY \
 		picard \
-		/bin/bash -c "python seq2seq/run_seq2seq.py configs/train.json"
+		/bin/bash -c "deepspeed --num_gpus=2 seq2seq/run_seq2seq.py configs/train.json"
 
 .PHONY: train_cosql
 train_cosql: pull-train-image
