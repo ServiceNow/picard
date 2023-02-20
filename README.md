@@ -376,3 +376,17 @@ There are three docker images that can be used to run the code:
 * **[tscholak/text-to-sql-eval](https://hub.docker.com/repository/docker/tscholak/text-to-sql-eval):** Training/evaluation image with all dependencies. Use this for evaluating a fine-tuned model with Picard. This image can also be used for training if you want to run evaluation during training with Picard. Pull it with `make pull-eval-image` from the docker hub. Rebuild the image with `make build-eval-image`.
 
 All images are tagged with the current commit hash. The images are built with the buildx tool which is available in the latest docker-ce. Use `make init-buildkit` to initialize the buildx tool on your machine. You can then use `make build-dev-image`, `make build-train-image`, etc. to rebuild the images. Local changes to the code will not be reflected in the docker images unless they are committed to git.
+
+### Using Deepspeed
+Training on 24 GB GPU was not possible for a batch size of even 1. So we need to use deepspeed. Deepspeed failed in docker silently. So we need to run on host. 
+
+```shell
+# intsall deespeed
+export PATH="/usr/local/cuda-11.7/bin:$PATH"
+export LD_LIBRARY_PATH="/usr/local/cuda-11.7/lib64:$LD_LIBRARY_PATH"
+DS_BUILD_CPU_ADAM=1 DS_BUILD_AIO=0 pip install deepspeed --global-option="build_ext" --global-option="-j8"
+
+# start training
+deepspeed seq2seq/run_seq2seq.py configs/train.json
+```
+
