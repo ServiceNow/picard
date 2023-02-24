@@ -202,6 +202,7 @@ def main():
                 schema_serialization_randomized = schema_serialization_randomized,
                 schema_serialization_with_db_id = schema_serialization_with_db_id,
                 schema_serialization_with_db_content = schema_serialization_with_db_content, 
+                foreign_keys=schema['db_foreign_keys']
                 )
             return spider_get_input('question', serialized_schema, prefix='')
 

@@ -8,6 +8,9 @@ from seq2seq.utils.dataset import serialize_schema
 from seq2seq.utils.spider import spider_get_input
 from seq2seq.utils.cosql import cosql_get_input
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class Text2SQLInput(object):
@@ -48,6 +51,8 @@ class Text2SQLGenerationPipeline(Text2TextGenerationPipeline):
         self.schema_serialization_with_db_id: bool = kwargs.pop("schema_serialization_with_db_id", True)
         self.schema_serialization_with_db_content: bool = kwargs.pop("schema_serialization_with_db_content", True)
         self.schema_cache: Dict[str, dict] = dict()
+        self.include_foreign_keys = kwargs.pop("include_foreign_keys_in_schema", True)
+        logger.warning(f'include_foreign_keys 2 is {self.include_foreign_keys}')
         super().__init__(*args, **kwargs)
 
     def __call__(self, inputs: Union[Text2SQLInput, List[Text2SQLInput]], *args, **kwargs):
@@ -144,6 +149,8 @@ class Text2SQLGenerationPipeline(Text2TextGenerationPipeline):
             schema_serialization_with_db_id=self.schema_serialization_with_db_id,
             schema_serialization_with_db_content=self.schema_serialization_with_db_content,
             normalize_query=self.normalize_query,
+            include_foreign_keys=self.include_foreign_keys,
+            foreign_keys=schema["db_foreign_keys"],
         )
         spider_input = spider_get_input(question=input.utterance, serialized_schema=serialized_schema, prefix=prefix)
         print(f'spider input is:{spider_input}')
@@ -280,6 +287,7 @@ class ConversationalText2SQLGenerationPipeline(Text2TextGenerationPipeline):
     """
 
     def __init__(self, *args, **kwargs):
+        logger.warning(f'kwargs is :{kwargs}')
         self.db_path: str = kwargs.pop("db_path")
         self.prefix: Optional[str] = kwargs.pop("prefix", None)
         self.normalize_query: bool = kwargs.pop("normalize_query", True)
@@ -288,6 +296,8 @@ class ConversationalText2SQLGenerationPipeline(Text2TextGenerationPipeline):
         self.schema_serialization_with_db_id: bool = kwargs.pop("schema_serialization_with_db_id", True)
         self.schema_serialization_with_db_content: bool = kwargs.pop("schema_serialization_with_db_content", True)
         self.schema_cache: Dict[str, dict] = dict()
+        self.include_foreign_keys = kwargs.pop("include_foreign_keys", False)
+        logger.warning(f'include foreign keys is :{self.include_foreign_keys}')
         super().__init__(*args, **kwargs)
 
     def __call__(self, inputs: Union[ConversationalText2SQLInput, List[ConversationalText2SQLInput]], *args, **kwargs):
@@ -380,6 +390,8 @@ class ConversationalText2SQLGenerationPipeline(Text2TextGenerationPipeline):
             schema_serialization_with_db_id=self.schema_serialization_with_db_id,
             schema_serialization_with_db_content=self.schema_serialization_with_db_content,
             normalize_query=self.normalize_query,
+            include_foreign_keys=self.include_foreign_keys_in_schema,
+            foreign_keys = schema["db_foreign_keys"]
         )
         return cosql_get_input(utterances=input.utterances, serialized_schema=serialized_schema, prefix=prefix)
 
