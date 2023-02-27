@@ -7,12 +7,13 @@ from datasets.metric import Metric
 import numpy as np
 import time
 from pynvml import *
+from loguru import logger
 
 def print_gpu_utilization():
     nvmlInit()
     handle = nvmlDeviceGetHandleByIndex(0)
     info = nvmlDeviceGetMemoryInfo(handle)
-    print(f"GPU memory occupied: {info.used//1024**2} MB.")
+    logger.info(f"GPU memory occupied: {info.used//1024**2} MB.")
 
 
 def print_summary(result):
@@ -61,10 +62,12 @@ class Seq2SeqTrainer(transformers.trainer_seq2seq.Seq2SeqTrainer):
         max_length: Optional[int] = None,
         max_time: Optional[int] = None,
         num_beams: Optional[int] = None,
+        **gen_kwargs
     ) -> Dict[str, float]:
         self._max_length = max_length
         self._max_time = max_time
         self._num_beams = num_beams
+        self._gen_kwargs = gen_kwargs
 
         # memory metrics - must set up as early as possible
         self._memory_tracker.start()
