@@ -1,5 +1,6 @@
 # Set up logging
 import sys
+sys.path.append('.')
 import logging
 
 logging.basicConfig(
@@ -9,6 +10,7 @@ logging.basicConfig(
     level=logging.WARNING,
 )
 logger = logging.getLogger(__name__)
+from loguru import logger
 
 from typing import Optional, Dict
 from dataclasses import dataclass, field
@@ -74,6 +76,7 @@ def main():
         picard_args, backend_args, data_training_args = parser.parse_args_into_dataclasses()
 
     # Initialize config
+    logger.info(f'loading model...')
     config = AutoConfig.from_pretrained(
         backend_args.model_path,
         cache_dir=backend_args.cache_dir,
@@ -123,6 +126,7 @@ def main():
         pipe_with_schema = Text2SQLGenPipelineWithSchema(
             model = model,
             tokenizer = tokenizer,
+            db_path = backend_args.db_path,
             normalize_query = data_training_args.normalize_query,
             device = backend_args.device)
 
@@ -178,6 +182,7 @@ def main():
         @app.get("/database/")
         def get_database_list():
             db_dir = Path(backend_args.db_path)
+
             print(f'db_path - {db_dir}')
             db_files = db_dir.rglob("*.sqlite")
             return [db_file.stem for db_file in db_files if db_file.stem == db_file.parent.stem]
@@ -186,8 +191,8 @@ def main():
         def get_schema_for_database(db_id):
             return get_schema(backend_args.db_path, db_id)
 
-        @app.get("/schema/{db_id}/spider-input")
-        def get_spider_input(db_id, schema_serialization_type = "peteshaw",
+        @app.get("/serialized-schema/{db_id}/")
+        def get_serialized_schema(db_id, schema_serialization_type = "peteshaw",
                                                 schema_serialization_randomized = False,
                                                 schema_serialization_with_db_id = True, 
                                                 schema_serialization_with_db_content = False
@@ -202,6 +207,7 @@ def main():
                 schema_serialization_randomized = schema_serialization_randomized,
                 schema_serialization_with_db_id = schema_serialization_with_db_id,
                 schema_serialization_with_db_content = schema_serialization_with_db_content, 
+                include_foreign_keys=data_training_args.include_foreign_keys_in_schema,
                 foreign_keys=schema['db_foreign_keys']
                 )
             return spider_get_input('question', serialized_schema, prefix='')
