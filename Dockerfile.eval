@@ -1,6 +1,17 @@
-FROM tscholak/text-to-sql-eval:6a252386bed6d4233f0f13f4562d8ae8608e7445
+ARG BASE_IMAGE
+FROM $BASE_IMAGE as dev
 
 ARG TOOLKIT_USER_ID=13011
 ARG TOOLKIT_GROUP_ID=13011
+
+RUN pip install poetry && poetry config virtualenvs.create false
+RUN poetry update
+RUN pip install transformers datasets pynvml deepspeed tenacity rapidfuzz==2.0.5 nltk==3.7 \
+    sqlparse==0.4.2 pyarrow==7.0.0 loguru accelerate
+    
+ENV XDG_DATA_HOME=/app/.local/share \
+    XDG_CACHE_HOME=/app/.cache \
+    XDG_BIN_HOME=/app/.local/bin \
+    XDG_CONFIG_HOME=/app/.config
 
 COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID ./seq2seq /app/seq2seq/
