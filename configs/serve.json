@@ -1,20 +1,21 @@
 {
-    "model_path": "tscholak/3vnuv1vf",
+    "model_path": "/data/checkpoint-90",
     "source_prefix": "",
     "schema_serialization_type": "peteshaw",
     "schema_serialization_randomized": false,
     "schema_serialization_with_db_id": true,
     "schema_serialization_with_db_content": true,
+    "include_foreign_keys_in_schema": true,
     "normalize_query": true,
     "target_with_db_id": true,
-    "db_path": "/database",
-    "cache_dir": "/transformers_cache",
+    "db_path": "/home/ubuntu/trans_cache/downloads/extracted/d712e0d61bf3021b084b5268e3189f7f8882e4938131c9c749b9e008c833cef3/spider/database/",
+    "cache_dir": "~/trans_cache",
     "num_beams": 4,
     "num_return_sequences": 1,
-    "use_picard": true,
-    "launch_picard": true,
+    "use_picard": false,
+    "launch_picard": false,
     "picard_mode": "parse_with_guards",
     "picard_schedule": "incremental",
     "picard_max_tokens_to_check": 2,
-    "device": 0
+    "device": -1
 }

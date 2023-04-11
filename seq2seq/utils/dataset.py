@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Callable
+from typing import Optional, List, Dict, Callable, Tuple
 from dataclasses import dataclass, field
 from datasets.dataset_dict import DatasetDict
 from datasets.arrow_dataset import Dataset
@@ -6,6 +6,11 @@ from transformers.training_args import TrainingArguments
 from seq2seq.utils.bridge_content_encoder import get_database_matches
 import re
 import random
+import os
+import logging
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -19,7 +24,7 @@ class DataTrainingArguments:
         metadata={"help": "Overwrite the cached training and evaluation sets"},
     )
     preprocessing_num_workers: Optional[int] = field(
-        default=None,
+        default=int(os.cpu_count() * 0.75) if os.cpu_count() is not None else 4, # set to half of the number of CPUs
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
     max_source_length: Optional[int] = field(
@@ -125,7 +130,10 @@ class DataTrainingArguments:
         default=True,
         metadata={"help": "Whether or not to add the database id to the target. Needed for Picard."},
     )
-
+    include_foreign_keys_in_schema: bool = field(
+        default=True,
+        metadata={"help": "Whether or not to include foreign keys in the schema."},
+    )
     def __post_init__(self):
         if self.val_max_target_length is None:
             self.val_max_target_length = self.max_target_length
@@ -354,7 +362,10 @@ def serialize_schema(
     schema_serialization_with_db_id: bool = True,
     schema_serialization_with_db_content: bool = False,
     normalize_query: bool = True,
+    include_foreign_keys: bool = False,
+    foreign_keys: Optional[List[Tuple[str, str]]] = None
 ) -> str:
+    # logger.warning(f'foreign keys for {db_id} is {foreign_keys}. tb_tables - {db_table_names}')
     if schema_serialization_type == "verbose":
         db_id_str = "Database: {db_id}. "
         table_sep = ". "
@@ -375,8 +386,21 @@ def serialize_schema(
     else:
         raise NotImplementedError
 
-    def get_column_str(table_name: str, column_name: str) -> str:
+    def get_column_str(table_id: int, table_name: str, column_name: str, include_foreign_keys:bool) -> str:
         column_name_str = column_name.lower() if normalize_query else column_name
+        if include_foreign_keys:
+            # get location of fk in foreign_keys list
+            column_id = db_column_names['column_name'].index(column_name) if column_name in db_column_names['column_name'] else None
+            fk_idx = foreign_keys['column_id'].index(column_id) if column_id in foreign_keys['column_id'] else None
+            if fk_idx is not None:
+                other_column_id = foreign_keys['other_column_id'][fk_idx] 
+                other_table_id = db_column_names['table_id'][other_column_id]
+                other_table_name = db_table_names[other_table_id]
+                other_column_name = db_column_names['column_name'][other_column_id]
+                fk_str = f'__fk__{other_table_name}.{other_column_name}'
+                column_name_str = column_name_str + fk_str 
+
+
         if schema_serialization_with_db_content:
             matches = get_database_matches(
                 question=question,
@@ -396,7 +420,8 @@ def serialize_schema(
             table=table_name.lower() if normalize_query else table_name,
             columns=column_sep.join(
                 map(
-                    lambda y: get_column_str(table_name=table_name, column_name=y[1]),
+                    lambda y: get_column_str(table_id=table_id, table_name=table_name, column_name=y[1], 
+                    include_foreign_keys=include_foreign_keys),
                     filter(
                         lambda y: y[0] == table_id,
                         zip(
@@ -415,4 +440,5 @@ def serialize_schema(
         serialized_schema = db_id_str.format(db_id=db_id) + table_sep.join(tables)
     else:
         serialized_schema = table_sep.join(tables)
+    # logger.warning(f'serialized schema for {db_id} is {serialized_schema}.')
     return serialized_schema

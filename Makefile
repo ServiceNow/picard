@@ -64,59 +64,65 @@ pull-dev-image:
 
 .PHONY: build-train-image
 build-train-image:
-	ssh-add
-	docker buildx build \
-		--builder $(BUILDKIT_BUILDER) \
-		--ssh default=$(SSH_AUTH_SOCK) \
-		-f Dockerfile \
-		--tag tscholak/$(TRAIN_IMAGE_NAME):$(GIT_HEAD_REF) \
-		--tag tscholak/$(TRAIN_IMAGE_NAME):cache \
-		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
-		--target train \
-		--cache-from type=registry,ref=tscholak/$(TRAIN_IMAGE_NAME):cache \
-		--cache-to type=inline \
-		--push \
-		git@github.com:ElementAI/picard#$(GIT_HEAD_REF)
+	docker build . -f Dockerfile.train -t picard --build-arg BASE_IMAGE=tscholak/text-to-sql-train:6a252386bed6d4233f0f13f4562d8ae8608e7445
+	# docker build . -f Dockerfile.train -t picard --build-arg BASE_IMAGE=pytorch/pytorch:1.13.1-cuda11.6-cudnn8-devel
+	# docker buildx build 
+	# 	--builder $(BUILDKIT_BUILDER) \
+	# 	--ssh default=$(SSH_AUTH_SOCK) \
+	# 	-f Dockerfile.train \
+	# 	--tag picard \
+	# 	--build-arg BASE_IMAGE=$(BASE_IMAGE) \
+	# 	--target train \
+	# 	--cache-from type=registry,ref=tscholak/$(TRAIN_IMAGE_NAME):cache \
+	# 	--cache-to type=inline 
 
 .PHONY: pull-train-image
 pull-train-image:
-	docker pull tscholak/$(TRAIN_IMAGE_NAME):$(GIT_HEAD_REF)
+	docker pull tscholak/text-to-sql-train:6a252386bed6d4233f0f13f4562d8ae8608e7445
+	docker build . -t picard -f Dockerfile.train
 
 .PHONY: build-eval-image
-build-eval-image:
-	ssh-add
-	docker buildx build \
-		--builder $(BUILDKIT_BUILDER) \
-		--ssh default=$(SSH_AUTH_SOCK) \
-		-f Dockerfile \
-		--tag tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF) \
-		--tag tscholak/$(EVAL_IMAGE_NAME):cache \
-		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
-		--target eval \
-		--cache-from type=registry,ref=tscholak/$(EVAL_IMAGE_NAME):cache \
-		--cache-to type=inline \
-		--push \
-		git@github.com:ElementAI/picard#$(GIT_HEAD_REF)
+build-eval-image:    
+	docker build . -f Dockerfile.eval -t picard-eval --build-arg BASE_IMAGE=tscholak/text-to-sql-eval:6a252386bed6d4233f0f13f4562d8ae8608e7445
+	# ssh-add
+	# docker buildx build \
+	# 	--builder $(BUILDKIT_BUILDER) \
+	# 	--ssh default=$(SSH_AUTH_SOCK) \
+	# 	-f Dockerfile \
+	# 	--tag tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF) \
+	# 	--tag tscholak/$(EVAL_IMAGE_NAME):cache \
+	# 	--build-arg BASE_IMAGE=$(BASE_IMAGE) \
+	# 	--target eval \
+	# 	--cache-from type=registry,ref=tscholak/$(EVAL_IMAGE_NAME):cache \
+	# 	--cache-to type=inline \
+	# 	--push \
+	# 	git@github.com:ElementAI/picard#$(GIT_HEAD_REF)
 
 .PHONY: pull-eval-image
 pull-eval-image:
-	docker pull tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF)
+	docker pull tscholak/text-to-sql-eval:6a252386bed6d4233f0f13f4562d8ae8608e7445
 
 .PHONY: train
-train: pull-train-image
+train: build-train-image
 	mkdir -p -m 777 train
 	mkdir -p -m 777 transformers_cache
 	mkdir -p -m 777 wandb
 	docker run \
 		-it \
 		--rm \
-		--user 13011:13011 \
-		--mount type=bind,source=$(BASE_DIR)/train,target=/train \
-		--mount type=bind,source=$(BASE_DIR)/transformers_cache,target=/transformers_cache \
-		--mount type=bind,source=$(BASE_DIR)/configs,target=/app/configs \
-		--mount type=bind,source=$(BASE_DIR)/wandb,target=/app/wandb \
-		tscholak/$(TRAIN_IMAGE_NAME):$(GIT_HEAD_REF) \
-		/bin/bash -c "python seq2seq/run_seq2seq.py configs/train.json"
+		--name picard \
+		--gpus all \
+		--ulimit memlock=-1:-1 \
+		--ipc host \
+		-v $(BASE_DIR)/train_output:/train_output \
+		-v $(BASE_DIR)/transformers_cache:/transformers_cache \
+		-v $(BASE_DIR)/configs:/app/configs \
+		-v $(BASE_DIR)/wandb:/app/wandb \
+		-v $(BASE_DIR)/data:/app/data \
+		--env WANDB_API_KEY \
+		-e TRANSFORMERS_CACHE=/transformers_cache \
+		picard \
+		/bin/bash -c "deepspeed --num_gpus=4 seq2seq/run_seq2seq.py configs/train.json"
 
 .PHONY: train_cosql
 train_cosql: pull-train-image
@@ -131,23 +137,24 @@ train_cosql: pull-train-image
 		--mount type=bind,source=$(BASE_DIR)/transformers_cache,target=/transformers_cache \
 		--mount type=bind,source=$(BASE_DIR)/configs,target=/app/configs \
 		--mount type=bind,source=$(BASE_DIR)/wandb,target=/app/wandb \
-		tscholak/$(TRAIN_IMAGE_NAME):$(GIT_HEAD_REF) \
+		picard \
 		/bin/bash -c "python seq2seq/run_seq2seq.py configs/train_cosql.json"
 
 .PHONY: eval
-eval: pull-eval-image
+eval: build-eval-image
 	mkdir -p -m 777 eval
 	mkdir -p -m 777 transformers_cache
 	mkdir -p -m 777 wandb
 	docker run \
 		-it \
 		--rm \
-		--user 13011:13011 \
-		--mount type=bind,source=$(BASE_DIR)/eval,target=/eval \
-		--mount type=bind,source=$(BASE_DIR)/transformers_cache,target=/transformers_cache \
-		--mount type=bind,source=$(BASE_DIR)/configs,target=/app/configs \
-		--mount type=bind,source=$(BASE_DIR)/wandb,target=/app/wandb \
-		tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF) \
+		--gpus all \
+		-v $(BASE_DIR)/eval_output:/eval_output \
+		-v $(BASE_DIR)/transformers_cache:/transformers_cache \
+		-v $(BASE_DIR)/configs:/app/configs \
+		-v /xdata/train_output:/train_output \
+		-e TRANSFORMERS_CACHE=/transformers_cache \
+		picard-eval \
 		/bin/bash -c "python seq2seq/run_seq2seq.py configs/eval.json"
 
 .PHONY: eval_cosql
@@ -170,6 +177,7 @@ eval_cosql: pull-eval-image
 serve: pull-eval-image
 	mkdir -p -m 777 database
 	mkdir -p -m 777 transformers_cache
+	docker build . -t picard -f Dockerfile.eval
 	docker run \
 		-it \
 		--rm \
@@ -178,7 +186,8 @@ serve: pull-eval-image
 		--mount type=bind,source=$(BASE_DIR)/database,target=/database \
 		--mount type=bind,source=$(BASE_DIR)/transformers_cache,target=/transformers_cache \
 		--mount type=bind,source=$(BASE_DIR)/configs,target=/app/configs \
-		tscholak/$(EVAL_IMAGE_NAME):$(GIT_HEAD_REF) \
+		--name picard \
+		picard \
 		/bin/bash -c "python seq2seq/serve_seq2seq.py configs/serve.json"
 
 .PHONY: prediction_output

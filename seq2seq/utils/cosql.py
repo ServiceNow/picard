@@ -47,6 +47,7 @@ def cosql_add_serialized_schema(
         schema_serialization_with_db_id=data_training_args.schema_serialization_with_db_id,
         schema_serialization_with_db_content=data_training_args.schema_serialization_with_db_content,
         normalize_query=data_training_args.normalize_query,
+        foreign_keys=ex["db_foreign_keys"],
     )
     return {"serialized_schema": serialized_schema}
 

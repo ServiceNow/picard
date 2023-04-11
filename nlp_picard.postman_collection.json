@@ -1,0 +1,156 @@
+{
+	"info": {
+		"_postman_id": "c47177e2-5637-48ed-9671-27acbb36fb85",
+		"name": "nlp_picard",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "17757684"
+	},
+	"item": [
+		{
+			"name": "get query",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://54.90.26.47:8000/ask/?db_id=well&question=what is the average length of the well bore",
+					"protocol": "http",
+					"host": [
+						"54",
+						"90",
+						"26",
+						"47"
+					],
+					"port": "8000",
+					"path": [
+						"ask",
+						""
+					],
+					"query": [
+						{
+							"key": "db_id",
+							"value": "well"
+						},
+						{
+							"key": "question",
+							"value": "what is the average length of the well bore"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "get databases",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://54.90.26.47:8000/database/",
+					"protocol": "http",
+					"host": [
+						"54",
+						"90",
+						"26",
+						"47"
+					],
+					"port": "8000",
+					"path": [
+						"database",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "get schema for database",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://54.90.26.47:8000/schema/well/",
+					"protocol": "http",
+					"host": [
+						"54",
+						"90",
+						"26",
+						"47"
+					],
+					"port": "8000",
+					"path": [
+						"schema",
+						"well",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "create schema",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "[\n    \"CREATE TABLE well(id, name)\",\n    \"CREATE TABLE wellbore(id, well_id, bore_length)\"\n]",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://54.90.26.47:8000/schema/well2/",
+					"protocol": "http",
+					"host": [
+						"54",
+						"90",
+						"26",
+						"47"
+					],
+					"port": "8000",
+					"path": [
+						"schema",
+						"well2",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "update schema",
+			"request": {
+				"method": "PATCH",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "[\n    \"CREATE TABLE well_2(id, name)\",\n    \"CREATE TABLE wellbore_2(id, well_id, bore_length)\"\n]",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://54.90.26.47:8000/schema/well2/",
+					"protocol": "http",
+					"host": [
+						"54",
+						"90",
+						"26",
+						"47"
+					],
+					"port": "8000",
+					"path": [
+						"schema",
+						"well2",
+						""
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

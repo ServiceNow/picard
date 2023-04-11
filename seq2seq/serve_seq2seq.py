@@ -1,5 +1,6 @@
 # Set up logging
 import sys
+sys.path.append('.')
 import logging
 
 logging.basicConfig(
@@ -9,6 +10,7 @@ logging.basicConfig(
     level=logging.WARNING,
 )
 logger = logging.getLogger(__name__)
+from loguru import logger
 
 from typing import Optional, Dict
 from dataclasses import dataclass, field
@@ -20,9 +22,16 @@ from transformers.models.auto import AutoConfig, AutoTokenizer, AutoModelForSeq2
 from fastapi import FastAPI, HTTPException
 from uvicorn import run
 from sqlite3 import Connection, connect, OperationalError
-from seq2seq.utils.pipeline import Text2SQLGenerationPipeline, Text2SQLInput, get_schema
+from seq2seq.utils.pipeline import (Text2SQLGenerationPipeline, Text2SQLGenPipelineWithSchema,
+    Text2SQLInput, QuestionWithSchemaInput, get_schema, get_schema_for_display,
+    get_db_file_path)
 from seq2seq.utils.picard_model_wrapper import PicardArguments, PicardLauncher, with_picard
+from seq2seq.utils.dataset import serialize_schema
 from seq2seq.utils.dataset import DataTrainingArguments
+from seq2seq.utils.spider import spider_get_input
+import sqlite3
+from pathlib import Path
+from typing import List
 
 
 @dataclass
@@ -67,6 +76,7 @@ def main():
         picard_args, backend_args, data_training_args = parser.parse_args_into_dataclasses()
 
     # Initialize config
+    logger.info(f'loading model...')
     config = AutoConfig.from_pretrained(
         backend_args.model_path,
         cache_dir=backend_args.cache_dir,
@@ -113,8 +123,20 @@ def main():
             device=backend_args.device,
         )
 
+        pipe_with_schema = Text2SQLGenPipelineWithSchema(
+            model = model,
+            tokenizer = tokenizer,
+            db_path = backend_args.db_path,
+            normalize_query = data_training_args.normalize_query,
+            device = backend_args.device)
+
+
         # Initialize REST API
         app = FastAPI()
+
+        class Query(BaseModel):
+            question: str
+            db_schema: str
 
         class AskResponse(BaseModel):
             query: str
@@ -128,7 +150,7 @@ def main():
                     status_code=500, detail=f'while executing "{query}", the following error occurred: {e.args[0]}'
                 )
 
-        @app.get("/ask/{db_id}/{question}")
+        @app.get("/ask/")
         def ask(db_id: str, question: str):
             try:
                 outputs = pipe(
@@ -143,9 +165,107 @@ def main():
             finally:
                 conn.close()
 
+
+        @app.post("/ask-with-schema/")
+        def ask_with_schema(query: Query):
+            try:
+                outputs = pipe_with_schema(
+                    inputs = QuestionWithSchemaInput(utterance=query.question, schema=query.db_schema),
+                    num_return_sequences=data_training_args.num_return_sequences
+                )
+            except OperationalError as e:
+                raise HTTPException(status_code=404, detail=e.args[0])
+
+            return [output["generated_text"] for output in outputs]
+
+
+        @app.get("/database/")
+        def get_database_list():
+            db_dir = Path(backend_args.db_path)
+
+            print(f'db_path - {db_dir}')
+            db_files = db_dir.rglob("*.sqlite")
+            return [db_file.stem for db_file in db_files if db_file.stem == db_file.parent.stem]
+
+        @app.get("/schema/{db_id}")
+        def get_schema_for_database(db_id):
+            return get_schema(backend_args.db_path, db_id)
+
+        @app.get("/serialized-schema/{db_id}/")
+        def get_serialized_schema(db_id, schema_serialization_type = "peteshaw",
+                                                schema_serialization_randomized = False,
+                                                schema_serialization_with_db_id = True, 
+                                                schema_serialization_with_db_content = False
+                                               ):
+            schema = pipe_with_schema.get_schema_from_cache(db_id)
+            serialized_schema = serialize_schema(question='question',
+                db_path = backend_args.db_path,
+                db_id = db_id,
+                db_column_names = schema['db_column_names'],
+                db_table_names = schema['db_table_names'],
+                schema_serialization_type = schema_serialization_type,
+                schema_serialization_randomized = schema_serialization_randomized,
+                schema_serialization_with_db_id = schema_serialization_with_db_id,
+                schema_serialization_with_db_content = schema_serialization_with_db_content, 
+                include_foreign_keys=data_training_args.include_foreign_keys_in_schema,
+                foreign_keys=schema['db_foreign_keys']
+                )
+            return spider_get_input('question', serialized_schema, prefix='')
+
+
+        @app.post("/schema/{db_id}")
+        def create_schema(db_id, queries: List[str]):
+            db_file_path = Path(get_db_file_path(backend_args.db_path, db_id))
+
+            if db_file_path.exists():
+                raise HTTPException(status_code=409, detail="database already exists")
+
+            # create parent directory if it doesn't exist
+            db_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+            print(f'creating database {db_file_path.as_posix()}...')
+            
+            con = sqlite3.connect(db_file_path.as_posix())
+            cur = con.cursor()
+            try:
+                for query in queries:
+                    cur.execute(query)
+                con.commit()
+            except OperationalError as e:
+                raise HTTPException(status_code=400, detail=e.args[0])
+            finally:
+                con.close()
+            
+            return get_schema(backend_args.db_path, db_id)
+
+        @app.patch("/schema/{db_id}")
+        def update_schema(db_id, queries: List[str]):
+            db_file_path = Path(get_db_file_path(backend_args.db_path, db_id))
+
+            if not db_file_path.exists():
+                raise HTTPException(status_code=404, detail="database not found")
+
+            print(f'updating database {db_file_path.as_posix()}...')
+            
+            con = sqlite3.connect(db_file_path.as_posix())
+            cur = con.cursor()
+            try:
+                for query in queries:
+                    cur.execute(query)
+                con.commit()
+            except OperationalError as e:
+                raise HTTPException(status_code=400, detail=e.args[0])
+            finally:
+                con.close()
+            
+            return get_schema(backend_args.db_path, db_id)
+
+        
+
         # Run app
         run(app=app, host=backend_args.host, port=backend_args.port)
 
 
 if __name__ == "__main__":
+    print('serving....')
     main()

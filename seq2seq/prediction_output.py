@@ -1,5 +1,6 @@
 # Set up logging
 import sys
+sys.path.append('.')
 import logging
 
 logging.basicConfig(
@@ -122,6 +123,7 @@ def get_pipeline_kwargs(
         "schema_serialization_type": data_training_args.schema_serialization_type,
         "schema_serialization_with_db_id": data_training_args.schema_serialization_with_db_id,
         "schema_serialization_with_db_content": data_training_args.schema_serialization_with_db_content,
+        "include_foreign_keys": data_training_args.include_foreign_keys_in_schema,
         "device": prediction_output_args.device,
     }
 

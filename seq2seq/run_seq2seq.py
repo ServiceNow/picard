@@ -1,5 +1,6 @@
 # Set up logging
 import sys
+sys.path.append('.')
 import logging
 
 logging.basicConfig(
@@ -30,10 +31,11 @@ from seq2seq.utils.dataset import DataTrainingArguments, DataArguments
 from seq2seq.utils.dataset_loader import load_dataset
 from seq2seq.utils.spider import SpiderTrainer
 from seq2seq.utils.cosql import CoSQLTrainer
+from seq2seq.utils.trainer import print_gpu_utilization
 
 
 def main() -> None:
-    # See all possible arguments by passing the --help flag to this script.
+    # See all possible arguments by passing the --help flag to this script.    
     parser = HfArgumentParser(
         (PicardArguments, ModelArguments, DataArguments, DataTrainingArguments, Seq2SeqTrainingArguments)
     )
@@ -127,6 +129,7 @@ def main() -> None:
     )
 
     # Initialize tokenizer
+    logger.warning('loading tokenizer...')
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
@@ -140,6 +143,7 @@ def main() -> None:
         tokenizer.add_tokens([AddedToken(" <="), AddedToken(" <")])
 
     # Load dataset
+    logger.warning('loading dataset...')
     metric, dataset_splits = load_dataset(
         data_args=data_args,
         model_args=model_args,
@@ -147,6 +151,7 @@ def main() -> None:
         training_args=training_args,
         tokenizer=tokenizer,
     )
+    logger.warning('loading dataset complete')
 
     # Initialize Picard if necessary
     with PicardLauncher() if picard_args.launch_picard and training_args.local_rank <= 0 else nullcontext(None):
@@ -159,6 +164,7 @@ def main() -> None:
             model_cls_wrapper = lambda model_cls: model_cls
 
         # Initialize model
+        logger.warning('loading model...')
         model = model_cls_wrapper(AutoModelForSeq2SeqLM).from_pretrained(
             model_args.model_name_or_path,
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
@@ -167,6 +173,9 @@ def main() -> None:
             revision=model_args.model_revision,
             use_auth_token=True if model_args.use_auth_token else None,
         )
+        print_gpu_utilization()
+
+
         if isinstance(model, T5ForConditionalGeneration):
             model.resize_token_embeddings(len(tokenizer))
 
@@ -204,7 +213,7 @@ def main() -> None:
 
         # Training
         if training_args.do_train:
-            logger.info("*** Train ***")
+            logger.warning("*** Train ***")
 
             checkpoint = None
 
@@ -212,7 +221,7 @@ def main() -> None:
                 checkpoint = training_args.resume_from_checkpoint
             elif last_checkpoint is not None:
                 checkpoint = last_checkpoint
-
+            
             train_result = trainer.train(resume_from_checkpoint=checkpoint)
             trainer.save_model()  # Saves the tokenizer too for easy upload
 
