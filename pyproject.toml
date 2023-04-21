@@ -22,7 +22,7 @@ sentencepiece = "0.1.96"
 tenacity = "^8.0.1"
 rapidfuzz = "^2.0.5"
 alive_progress = "^2.3.1"
-sqlparse = "^0.4.2"
+sqlparse = "^0.4.4"
 
 pillow = "9.0.1"
 transformers = "^4.17.0"
