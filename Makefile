@@ -6,7 +6,7 @@ DEV_IMAGE_NAME := text-to-sql-dev
 TRAIN_IMAGE_NAME := text-to-sql-train
 EVAL_IMAGE_NAME := text-to-sql-eval
 
-BUILDKIT_IMAGE := yizhangjustin/text-to-sql-buildkit:buildx-stable-1
+BUILDKIT_IMAGE := tscholak/text-to-sql-buildkit:buildx-stable-1
 BUILDKIT_BUILDER ?= buildx-local
 BASE_DIR := $(shell pwd)
 

@@ -7,6 +7,10 @@ FROM $BASE_IMAGE as dev
 
 ARG TOOLKIT_USER_ID=13011
 ARG TOOLKIT_GROUP_ID=13011
+ARG distro=ubuntu1804
+ARG arch=x86_64
+
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/$distro/$arch/3bf863cc.pub
 
 RUN apt-get update \
     # Required to save git hashes
