@@ -25,7 +25,7 @@ alive_progress = "^2.3.1"
 sqlparse = "^0.4.2"
 
 pillow = "9.0.1"
-transformers = "^4.17.0"
+transformers = "^4.30.0"
 deepspeed = { version = "0.5.10", optional = true }
 torch = { version = "1.9.0", optional = true }
 
