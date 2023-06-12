@@ -272,6 +272,15 @@ RUN poetry install --extras "deepspeed" \
 # Unfortunately, nltk doesn't look in XDG_DATA_HOME, so therefore /usr/local/share
 RUN python -m nltk.downloader -d /usr/local/share/nltk_data punkt stopwords
 
+# add ssh keys
+ADD authorized_keys /tmp/
+ADD known_hosts /tmp/
+RUN mkdir -p /root/.ssh \
+    && mv /tmp/authorized_keys /root/.ssh/authorized_keys \
+    && mv /tmp/known_hosts /root/.ssh/known_hosts \
+    && chown root:root /root/.ssh/*\
+    && rm -rf /tmp/authorized_keys
+
 # ------------------------
 # Target: train
 # ------------------------
