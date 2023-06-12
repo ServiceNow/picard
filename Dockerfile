@@ -181,17 +181,17 @@ RUN ghcup install ghc \
 RUN apt-get install -y --no-install-recommends git \
     && apt-get clean
 RUN rm -rf /var/lib/apt/lists/*
-RUN git clone https://github.com/haskell/cabal.git \
-    && cd cabal \
-    && git checkout f5f8d933db229d30e6fc558f5335f0a4e85d7d44 \
-    && sed -i 's/3.5.0.0/3.6.0.0/' */*.cabal \
-    && cabal install cabal-install/ \
+RUN git clone https://github.com/haskell/cabal.git 
+RUN cd cabal
+RUN git checkout f5f8d933db229d30e6fc558f5335f0a4e85d7d44
+RUN sed -i 's/3.5.0.0/3.6.0.0/' */*.cabal
+RUN cabal install cabal-install/ \
         --allow-newer=Cabal-QuickCheck:Cabal \
         --allow-newer=Cabal-described:Cabal \
         --allow-newer=Cabal-tree-diff:Cabal \
         --allow-newer=cabal-install:Cabal \
-        --allow-newer=cabal-install-solver:Cabal \
-    && cd .. \
+        --allow-newer=cabal-install-solver:Cabal
+RUN cd .. \
     && rm -rf cabal/ \
     && rm -rf /app/.cabal/packages/* \
     && rm -rf /app/.cabal/logs/* \
