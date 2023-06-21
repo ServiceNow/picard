@@ -42,8 +42,9 @@ _HOMEPAGE = "https://yale-lily.github.io/spider"
 
 _LICENSE = "CC BY-SA 4.0"
 
-_URL = "https://drive.google.com/uc?export=download&id=1_AckYkinAnhqmRQtGsQgUKAnTHxxX5J0"
+# _URL = "https://drive.google.com/uc?export=download&id=1_AckYkinAnhqmRQtGsQgUKAnTHxxX5J0"
 
+_URL = "https://drive.google.com/uc?export=download&id=1_AckYkinAnhqmRQtGsQgUKAnTHxxX5J0&confirm=t&uuid=dfb531ba-5798-495f-b96f-94fd61f816d7&at=AKKF8vxinOa0vxcpnVOV8vfgXetz:1686762033500"
 
 class Spider(datasets.GeneratorBasedBuilder):
     VERSION = datasets.Version("1.0.0")
