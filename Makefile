@@ -95,10 +95,8 @@ build-eval-image:
 		--tag yizhangjustin/$(EVAL_IMAGE_NAME):cache \
 		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
 		--target eval \
-		--no-cache \
 		--cache-from type=registry,ref=yizhangjustin/$(EVAL_IMAGE_NAME):cache \
 		--cache-to type=inline \
-		--progress=plain \
 		--push \
 		git@github.com:yizhang-unifr/t5-train-world-cup #$(GIT_HEAD_REF)
 
