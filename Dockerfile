@@ -203,10 +203,10 @@ RUN cd .. \
 COPY --chown=$TOOLKIT_USER_ID:$TOOLKIT_GROUP_ID third_party/hsthrift /app/third_party/hsthrift/
 RUN cd /app/third_party/hsthrift \
     && make thrift-cpp \
-    && cabal update \
-    && cabal build exe:thrift-compiler \
-    && make thrift-hs \
-    && cabal install exe:thrift-compiler \
+    && cabal update
+RUN cabal build exe:thrift-compiler
+RUN make thrift-hs
+RUN cabal install exe:thrift-compiler --allow-newer=base \
     && cabal clean \
     && rm -rf /app/.cabal/packages/* \
     && rm -rf /app/.cabal/logs/* \
