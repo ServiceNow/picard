@@ -75,6 +75,8 @@ build-train-image:
 		--target train \
 		--cache-from type=registry,ref=yizhangjustin/$(TRAIN_IMAGE_NAME):cache \
 		--cache-to type=inline \
+		--progress=plain \
+		--verbose \
 		--push \
 		git@github.com:yizhang-unifr/picard#$(GIT_HEAD_REF)
 
