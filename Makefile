@@ -99,7 +99,7 @@ build-eval-image:
 		--cache-to type=inline \
 		--no-cache \
 		--push \
-		git@github.com:yizhang-unifr/picard #$(GIT_HEAD_REF)
+		git@github.com:yizhang-unifr/picard#$(GIT_HEAD_REF)
 
 .PHONY: pull-eval-image
 pull-eval-image:

@@ -184,6 +184,8 @@ RUN rm -rf /var/lib/apt/lists/*
 RUN git clone https://github.com/haskell/cabal.git 
 RUN cd cabal
 RUN git config --global --add safe.directory '*'
+RUN ls .git -la
+RUN cat .git/HEAD
 RUN git checkout f5f8d933db229d30e6fc558f5335f0a4e85d7d44
 RUN sed -i 's/3.5.0.0/3.6.0.0/' */*.cabal
 RUN cabal install cabal-install/ \
