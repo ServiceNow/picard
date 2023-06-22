@@ -183,7 +183,6 @@ RUN apt-get install -y --no-install-recommends git \
 ADD https://api.github.com/repos/yizhang-unifr/cabal/git/refs/heads/main version.json
 RUN git clone https://github.com/yizhang-unifr/cabal.git
 RUN cd cabal
-RUN sed -i 's/3.5.0.0/3.6.0.0/' */*.cabal
 RUN cabal install cabal-install/ \
         --allow-newer=Cabal-QuickCheck:Cabal \
         --allow-newer=Cabal-described:Cabal \
