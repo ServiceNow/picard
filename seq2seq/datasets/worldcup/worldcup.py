@@ -9,6 +9,9 @@ import datasets
 from datasets.info import DatasetInfo
 from datasets.utils.download_manager import DownloadManager
 from seq2seq.utils.sql_database import SQLDatabase
+from dotenv import dotenv_values
+db_config = dotenv_values('.env')
+
 logger = datasets.logging.get_logger(__name__)
 
 DB_SCHEMAS = ['exp_v1', 'exp_v2', 'exp_v3']
@@ -23,11 +26,11 @@ _LICENSE = ""
 _URL = "https://drive.google.com/uc?export=download&id=1kbMHZXHdX9s1Jq7tmhKiYNPH1quMpcbA"
 
 def load_db_config(_schema=DB_SCHEMAS):
-    host = 'testbed.inode.igd.fraunhofer.de'
-    port = 18001
-    database = 'world_cup'
-    username = 'inode_readonly'
-    password = 'W8BYqhSemzyZ64YD'
+    host = db_config["WORLDCUP_CUP_DB_HOST"]
+    port = db_config["WORLDCUP_CUP_DB_PORT"]
+    database = db_config["WORLDCUP_CUP_DB_DATABASE"]
+    username = db_config["WORLDCUP_CUP_DB_USERNAME"]
+    password = db_config["WORLDCUP_CUP_DB_PASS"]
     database_uri = f'postgresql://{username}:{password}@{host}:{str(port)}/{database}'
     res = locals()
     _configs = ['v1', 'v2', 'v3']
@@ -174,3 +177,6 @@ class WorldCup(datasets.GeneratorBasedBuilder):
                             for column_id, other_column_id in schema["foreign_keys"]
                         ],
                     }
+                    
+if __name__ == '__main__':
+    print(load_db_config())
