@@ -98,6 +98,8 @@ build-eval-image:
 		--no-cache \
 		--cache-from type=registry,ref=yizhangjustin/$(EVAL_IMAGE_NAME):cache \
 		--cache-to type=inline \
+		--progress=plain \
+		--verbose \
 		--push \
 		git@github.com:yizhang-unifr/picard#$(GIT_HEAD_REF)
 
