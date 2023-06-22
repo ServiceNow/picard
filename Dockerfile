@@ -180,12 +180,9 @@ RUN ghcup install ghc \
     && cabal update
 RUN apt-get install -y --no-install-recommends git \
     && apt-get clean
-ADD https://api.github.com/repos/haskell/cabal/git/refs/heads/master version.json
+ADD https://api.github.com/repos/haskell/cabal/git/refs/heads/main version.json
 RUN git clone https://github.com/haskell/cabal.git
 RUN cd cabal
-RUN git config -l
-RUN git config --global --add safe.directory '*'
-RUN git checkout f5f8d933db229d30e6fc558f5335f0a4e85d7d44
 RUN sed -i 's/3.5.0.0/3.6.0.0/' */*.cabal
 RUN cabal install cabal-install/ \
         --allow-newer=Cabal-QuickCheck:Cabal \
