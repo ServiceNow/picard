@@ -181,7 +181,7 @@ RUN ghcup install ghc \
 RUN apt-get install -y --no-install-recommends git \
     && apt-get clean
 ADD https://api.github.com/repos/haskell/cabal/git/refs/heads/master version.json
-RUN git clone -n main https://github.com/haskell/cabal.git
+RUN git clone https://github.com/haskell/cabal.git
 RUN cd cabal
 RUN git config -l
 RUN git config --global --add safe.directory '*'
