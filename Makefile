@@ -56,7 +56,7 @@ build-dev-image:
 		--cache-from type=registry,ref=yizhangjustin/$(DEV_IMAGE_NAME):cache \
 		--cache-to type=inline \
 		--push \
-		git@github.com:yizhang-unifr/picard#$(GIT_HEAD_REF)
+		git@github.com:yizhang-unifr/t5-train-world-cup #$(GIT_HEAD_REF)
 
 .PHONY: pull-dev-image
 pull-dev-image:
@@ -78,7 +78,7 @@ build-train-image:
 		--progress=plain \
 		--verbose \
 		--push \
-		git@github.com:yizhang-unifr/picard#$(GIT_HEAD_REF)
+		git@github.com:yizhang-unifr/t5-train-world-cup #$(GIT_HEAD_REF)
 
 .PHONY: pull-train-image
 pull-train-image:
@@ -99,9 +99,8 @@ build-eval-image:
 		--cache-from type=registry,ref=yizhangjustin/$(EVAL_IMAGE_NAME):cache \
 		--cache-to type=inline \
 		--progress=plain \
-		--verbose \
 		--push \
-		git@github.com:yizhang-unifr/picard#$(GIT_HEAD_REF)
+		git@github.com:yizhang-unifr/t5-train-world-cup #$(GIT_HEAD_REF)
 
 .PHONY: pull-eval-image
 pull-eval-image:
