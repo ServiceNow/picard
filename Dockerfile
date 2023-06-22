@@ -173,7 +173,7 @@ RUN buildDeps=" \
         libgmp3-dev \
         "; 
 RUN apt-get update 
-RUN apt-get install libgmp3-dev
+RUN apt-get install -y --no-install-recommends libgmp3-dev
 RUN apt-get install -y --no-install-recommends $buildDeps $deps 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
 RUN ghcup install ghc \
