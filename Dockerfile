@@ -180,7 +180,7 @@ RUN ghcup install ghc \
     && cabal update
 RUN apt-get install -y --no-install-recommends git \
     && apt-get clean
-ADD https://api.github.com/repos/haskell/cabal/git/refs/heads/main version.json
+ADD https://api.github.com/repos/haskell/cabal/git/refs/heads/master version.json
 RUN git clone -n main https://github.com/haskell/cabal.git
 RUN cd cabal
 RUN git config -l
