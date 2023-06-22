@@ -98,7 +98,7 @@ build-eval-image:
 		--cache-from type=registry,ref=yizhangjustin/$(EVAL_IMAGE_NAME):cache \
 		--cache-to type=inline \
 		--push \
-		 git@github.com:yizhang-unifr/t5-train-world-cup #$(GIT_HEAD_REF)
+		git@github.com:yizhang-unifr/t5-train-world-cup #$(GIT_HEAD_REF)
 
 .PHONY: pull-eval-image
 pull-eval-image:
