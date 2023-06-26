@@ -1,0 +1,97 @@
+(base) ubuntu@ubuntu-focal-gpu-docker ~/workspace/picard main
+$ make build-eval-image
+ssh-add
+Identity added: /home/ubuntu/.ssh/id_rsa (zhay@zhaw.ch)
+docker buildx build \
+        --builder buildx-local \
+        --ssh default=/tmp/ssh-ddPSV1XqnpAu/agent.3422 \
+        -f Dockerfile \
+        --tag yizhangjustin/text-to-sql-eval:8bdbb1db805b2ae5826531f6233df51748d35e4d \
+        --tag yizhangjustin/text-to-sql-eval:cache \
+        --build-arg BASE_IMAGE=pytorch/pytorch:1.9.0-cuda11.1-cudnn8-devel \
+        --target eval \
+        --cache-from type=registry,ref=yizhangjustin/text-to-sql-eval:cache \
+        --cache-to type=inline \
+        --no-cache \
+        --push \
+        git@github.com:yizhang-unifr/picard#8bdbb1db805b2ae5826531f6233df51748d35e4d
+[+] Building 401.6s (11/70)
+[+] Building 401.7s (11/70)
+[+] Building 2669.2s (42/70)
+ => [internal] load git source git@github.com:yizhang-unifr/picard#8bdbb1db805b2ae5826531f6233df51748d35e4d                                                                                               7.4s
+ => [internal] load metadata for docker.io/pytorch/pytorch:1.9.0-cuda11.1-cudnn8-devel                                                                                                                    2.2s
+ => [auth] pytorch/pytorch:pull token for registry-1.docker.io                                                                                                                                            0.0s
+ => ERROR importing cache manifest from yizhangjustin/text-to-sql-eval:cache                                                                                                                              0.6s
+ => CACHED https://api.github.com/repos/yizhang-unifr/cabal/git/refs/heads/main                                                                                                                           0.3s
+ => [dev  1/50] FROM docker.io/pytorch/pytorch:1.9.0-cuda11.1-cudnn8-devel@sha256:ed167cae955fa654cefc3663fc0c7b16ee9c8e7ed307cb03306d6ea7a9f7b37b                                                      148.3s
+ => => resolve docker.io/pytorch/pytorch:1.9.0-cuda11.1-cudnn8-devel@sha256:ed167cae955fa654cefc3663fc0c7b16ee9c8e7ed307cb03306d6ea7a9f7b37b                                                              0.0s
+ => => sha256:82a5ac9ac621bb55ada3fd44572cecd6ccbadf7e9c9fa36c99b46e465ef699ff 132B / 132B                                                                                                                0.3s
+ => => sha256:66d4bed311a2a65b52f2c67167316b79b7fac58b8d3de9b230c37961bc714c15 3.74GB / 3.74GB                                                                                                           59.9s
+ => => extracting sha256:66d4bed311a2a65b52f2c67167316b79b7fac58b8d3de9b230c37961bc714c15                                                                                                                87.1s
+ => => extracting sha256:82a5ac9ac621bb55ada3fd44572cecd6ccbadf7e9c9fa36c99b46e465ef699ff                                                                                                                 0.2s
+ => [auth] yizhangjustin/text-to-sql-eval:pull token for registry-1.docker.io                                                                                                                             0.0s
+ => [dev  2/50] RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub                                                                      4.6s
+ => [dev  3/50] RUN apt-get update     && apt-get install -y -q git curl unzip make gettext     && rm -rf /var/lib/apt/lists/*                                                                           63.2s
+ => [dev  4/50] WORKDIR /app                                                                                                                                                                              0.2s
+ => [dev  5/50] RUN mkdir -p /app/.local/share     && mkdir -p /app/.cache     && mkdir -p /app/.local/bin     && mkdir -p /app/.config     && chown -R 13011:13011 /app                                  0.3s
+ => [dev  6/50] RUN curl https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -     && apt-get update     && apt-get install -y --no-install-recommends software-properties-common     && apt-add-  216.5s
+ => [dev  7/50] COPY --chown=13011:13011 third_party/zstd /app/third_party/zstd/                                                                                                                          2.4s
+ => [dev  8/50] RUN cd /app/third_party/zstd     && make -j4     && make install     && make clean                                                                                                       23.2s
+ => [dev  9/50] COPY --chown=13011:13011 third_party/fmt /app/third_party/fmt/                                                                                                                            0.9s
+ => [dev 10/50] RUN cd /app/third_party/fmt/     && mkdir _build     && cd _build     && cmake -DBUILD_SHARED_LIBS=ON -DBUILD_EXAMPLES=off -DBUILD_TESTS=off ../.     && make -j4     && make install    50.1s
+ => [dev 11/50] COPY --chown=13011:13011 third_party/folly /app/third_party/folly/                                                                                                                        4.1s  => [dev 12/50] RUN pip install cython     && cd /app/third_party/folly     && mkdir _build     && cd _build     && cmake -DBUILD_SHARED_LIBS=ON -DPYTHON_EXTENSIONS=ON -DBUILD_EXAMPLES=off -DBUILD_T  151.6s  => [dev 13/50] COPY --chown=13011:13011 third_party/rsocket-cpp /app/third_party/rsocket-cpp/                                                                                                            1.6s
+ => [dev 14/50] RUN cd /app/third_party/rsocket-cpp     && mkdir _build     && cd _build     && cmake -DBUILD_SHARED_LIBS=ON -DBUILD_EXAMPLES=off -DBUILD_TESTS=off ../.     && make -j4     && make in  46.2s
+ => [dev 15/50] COPY --chown=13011:13011 third_party/fizz /app/third_party/fizz/                                                                                                                          1.4s
+ => [dev 16/50] RUN cd /app/third_party/fizz     && mkdir _build     && cd _build     && cmake -DBUILD_SHARED_LIBS=ON -DBUILD_EXAMPLES=off -DBUILD_TESTS=off ../fizz     && make -j4     && make instal  44.8s
+ => [dev 17/50] COPY --chown=13011:13011 third_party/wangle /app/third_party/wangle/                                                                                                                      1.2s
+ => [dev 18/50] RUN cd /app/third_party/wangle     && mkdir _build     && cd _build     && cmake -DBUILD_SHARED_LIBS=ON -DBUILD_EXAMPLES=off -DBUILD_TESTS=off ../wangle     && make -j4     && make in  36.2s
+ => [dev 19/50] COPY --chown=13011:13011 third_party/fbthrift /app/third_party/fbthrift/                                                                                                                 19.5s
+ => [dev 20/50] RUN cd /app/third_party/fbthrift     && mkdir _build     && cd _build     && cmake         -DBUILD_SHARED_LIBS=ON         -DPYTHON_INCLUDE_DIR=$(python -c "from distutils.sysconfig i  538.2s
+ => [dev 21/50] RUN set -eux;     apt-get update;     apt-get install -y --no-install-recommends         ca-certificates         gcc         libc6-dev         wget         ;         url="https://sta  134.5s
+ => [dev 22/50] RUN buildDeps="         curl         ";     deps="         libtinfo-dev         libgmp3-dev         ";                                                                                    0.8s
+ => [dev 23/50] RUN apt-get update                                                                                                                                                                        5.2s
+ => [dev 24/50] RUN apt-get install -y --no-install-recommends libgmp3-dev                                                                                                                                4.2s
+ => [dev 25/50] RUN apt-get install -y --no-install-recommends $buildDeps $deps                                                                                                                           2.5s
+ => [dev 26/50] RUN curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh                                                                                                             205.0s
+ => [dev 27/50] RUN ghcup install ghc     && ghcup install cabal     && cabal update                                                                                                                      6.9s
+ => [dev 28/50] RUN apt-get install -y --no-install-recommends git     && apt-get clean                                                                                                                   5.0s
+ => [dev 29/50] ADD https://api.github.com/repos/yizhang-unifr/cabal/git/refs/heads/main version.json                                                                                                     0.4s
+ => [dev 30/50] RUN git clone https://github.com/yizhang-unifr/cabal.git                                                                                                                                  8.2s
+ => [dev 31/50] RUN cd cabal                                                                                                                                                                              0.5s
+ => [dev 32/50] RUN cabal install cabal-install         --allow-newer=Cabal-QuickCheck:Cabal         --allow-newer=Cabal-described:Cabal         --allow-newer=Cabal-tree-diff:Cabal         --allow-n  437.8s
+ => [dev 33/50] RUN cd ..     && rm -rf cabal/     && rm -rf /app/.cabal/packages/*     && rm -rf /app/.cabal/logs/*     && rm -rf /app/.cache/ghcup     && chown -R 13011:13011 /app/.cabal     && ch  454.6s
+ => [dev 34/50] COPY --chown=13011:13011 third_party/hsthrift /app/third_party/hsthrift/                                                                                                                  3.4s
+ => [dev 35/50] RUN cd /app/third_party/hsthrift     && make thrift-cpp     && cabal update                                                                                                              33.2s
+ => ERROR [dev 36/50] RUN cabal build exe:thrift-compiler                                                                                                                                                 0.3s
+------
+ > importing cache manifest from yizhangjustin/text-to-sql-eval:cache:
+------
+------
+ > [dev 36/50] RUN cabal build exe:thrift-compiler:
+#0 0.200 Error: cabal: Internal error in target matching: could not make an unambiguous
+#0 0.200 fully qualified target selector for 'exe:thrift-compiler'.
+#0 0.200 We made the target 'exe:thrift-compiler' (unknown-component) that was expected
+#0 0.200 to be unambiguous but matches the following targets:
+#0 0.200 'exe:thrift-compiler', matching:
+#0 0.201 - exe:thrift-compiler (unknown-component)
+#0 0.201 - :pkg:exe:lib:exe:file:thrift-compiler (unknown-file)
+#0 0.201
+#0 0.202 Note: Cabal expects to be able to make a single fully qualified name for a
+#0 0.202 target or provide a more specific error. Our failure to do so is a bug in
+#0 0.202 cabal. Tracking issue: https://github.com/haskell/cabal/issues/8684
+#0 0.202
+#0 0.204 Hint: this may be caused by trying to build a package that exists in the
+#0 0.204 project directory but is missing from the 'packages' stanza in your cabal
+#0 0.204 project file.
+#0 0.204
+------
+Dockerfile:207
+--------------------
+ 205 |         && make thrift-cpp \
+ 206 |         && cabal update
+ 207 | >>> RUN cabal build exe:thrift-compiler
+ 208 |     RUN make thrift-hs
+ 209 |     RUN cabal install exe:thrift-compiler --allow-newer=base \
+--------------------
+ERROR: failed to solve: executor failed running [/bin/sh -c cabal build exe:thrift-compiler]: exit code: 1
+make: *** [Makefile:90: build-eval-image] Error 1

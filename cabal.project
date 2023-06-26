@@ -1,5 +1,4 @@
 packages:
-    .
     third_party/hsthrift/common/util/fb-util.cabal
     third_party/hsthrift/common/github/fb-stubs.cabal
     third_party/hsthrift/common/mangle/mangle.cabal
