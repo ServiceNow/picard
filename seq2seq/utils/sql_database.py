@@ -566,15 +566,14 @@ class SQLDatabase(object):
             raise ValueError('Unsupported data type')
         return res
     
-    @lru_cache(maxsize=1000)
-    def cached_query_results(self, query, limit_num=100):
+    def query_results(self, query, limit_num=100):
         session = self.Session()
         try:
             result = session.execute(query).fetchmany(limit_num)
             return result
         except Exception as e:
             print(f"Error executing query: {query}. Error: {str(e)}")
-            raise
+            return ['Error', str(e)]
         finally:
             session.close()
 
