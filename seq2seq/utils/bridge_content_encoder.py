@@ -12,6 +12,7 @@ from typing import List, Optional, Tuple
 from rapidfuzz import fuzz
 import sqlite3
 import functools
+from seq2seq.utils.sql_database import SQLDatabase
 
 # fmt: off
 _stopwords = {'who', 'ourselves', 'down', 'only', 'were', 'him', 'at', "weren't", 'has', 'few', "it's", 'm', 'again',
@@ -231,6 +232,63 @@ def get_database_matches(
 ) -> List[str]:
     picklist = get_column_picklist(
         table_name=table_name, column_name=column_name, db_path=db_path
+    )
+    matches = []
+    if picklist and isinstance(picklist[0], str):
+        matched_entries = get_matched_entries(
+            s=question,
+            field_values=picklist,
+            m_theta=match_threshold,
+            s_theta=match_threshold,
+        )
+        if matched_entries:
+            num_values_inserted = 0
+            for _match_str, (
+                field_value,
+                _s_match_str,
+                match_score,
+                s_match_score,
+                _match_size,
+            ) in matched_entries:
+                if "name" in column_name and match_score * s_match_score < 1:
+                    continue
+                if table_name != "sqlite_sequence":  # Spider database artifact
+                    matches.append(field_value)
+                    num_values_inserted += 1
+                    if num_values_inserted >= top_k_matches:
+                        break
+    return matches
+
+
+@functools.lru_cache(maxsize=1000, typed=False)
+def get_column_picklist_from_db_uri(table_name: str, column_name: str, db_uri: str, db_schema: str, limit: int = 100) -> list:
+    fetch_sql = "SELECT DISTINCT {} FROM {} LIMIT {}".format(column_name, table_name, limit)
+    try:
+        db = SQLDatabase.from_uri(db_uri, schema=db_schema)
+        sample_rows = db.run(fetch_sql, fetch="all", fmt = "list")
+        picklist = set()
+        for x in sample_rows:
+            if isinstance(x[0], str):
+                picklist.add(x[0].encode("utf-8"))
+            else:
+                picklist.add(x[0])
+        picklist = list(picklist)
+    except Exception as e:
+        print(f'{str(e)}')
+    return picklist
+
+
+def get_database_matches_from_db_uri(
+    question: str,
+    table_name: str,
+    column_name: str,
+    db_uri: str,
+    db_schema: str,
+    top_k_matches: int = 2,
+    match_threshold: float = 0.85,
+) -> List[str]:
+    picklist = get_column_picklist_from_db_uri(
+        table_name=table_name, column_name=column_name, db_uri=db_uri, db_schema=db_schema, limit=100
     )
     matches = []
     if picklist and isinstance(picklist[0], str):

@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from datasets.dataset_dict import DatasetDict
 from datasets.arrow_dataset import Dataset
 from transformers.training_args import TrainingArguments
-from seq2seq.utils.bridge_content_encoder import get_database_matches
+from seq2seq.utils.bridge_content_encoder import get_database_matches, get_database_matches_from_db_uri
 import re
 import random
 
@@ -142,8 +142,8 @@ class DataArguments:
             "cosql": "./seq2seq/datasets/cosql",
             "spider_realistic": "./seq2seq/datasets/spider_realistic",
             "spider_syn": "./seq2seq/datasets/spider_syn",
-            "spider_dk": "./seq2seq/datasets/spider_dk"
-
+            "spider_dk": "./seq2seq/datasets/spider_dk",
+            "worldcup": "./seq2seq/datasets/worldcup"
         },
         metadata={"help": "Paths of the dataset modules."},
     )
@@ -158,7 +158,8 @@ class DataArguments:
             "spider_realistic" : "./seq2seq/metrics/spider",
             "cosql": "./seq2seq/metrics/cosql",
             "spider_syn":"./seq2seq/metrics/spider",
-            "spider_dk":"./seq2seq/metrics/spider"
+            "spider_dk":"./seq2seq/metrics/spider",
+            "worldcup": "./seq2seq/metrics/worldcup"
         },
         metadata={"help": "Paths of the metric modules."},
     )
@@ -383,6 +384,82 @@ def serialize_schema(
                 table_name=table_name,
                 column_name=column_name,
                 db_path=(db_path + "/" + db_id + "/" + db_id + ".sqlite"),
+            )
+            if matches:
+                return column_str_with_values.format(column=column_name_str, values=value_sep.join(matches))
+            else:
+                return column_str_without_values.format(column=column_name_str)
+        else:
+            return column_str_without_values.format(column=column_name_str)
+
+    tables = [
+        table_str.format(
+            table=table_name.lower() if normalize_query else table_name,
+            columns=column_sep.join(
+                map(
+                    lambda y: get_column_str(table_name=table_name, column_name=y[1]),
+                    filter(
+                        lambda y: y[0] == table_id,
+                        zip(
+                            db_column_names["table_id"],
+                            db_column_names["column_name"],
+                        ),
+                    ),
+                )
+            ),
+        )
+        for table_id, table_name in enumerate(db_table_names)
+    ]
+    if schema_serialization_randomized:
+        random.shuffle(tables)
+    if schema_serialization_with_db_id:
+        serialized_schema = db_id_str.format(db_id=db_id) + table_sep.join(tables)
+    else:
+        serialized_schema = table_sep.join(tables)
+    return serialized_schema
+
+def serialize_schema_from_db_uri(
+    question: str,
+    db_uri: str,
+    db_schema: str,
+    db_id: str,
+    db_column_names: Dict[str, str],
+    db_table_names: List[str],
+    schema_serialization_type: str = "peteshaw",
+    schema_serialization_randomized: bool = False,
+    schema_serialization_with_db_id: bool = True,
+    schema_serialization_with_db_content: bool = False,
+    normalize_query: bool = True,
+) -> str:
+    if schema_serialization_type == "verbose":
+        db_id_str = "Database: {db_id}. "
+        table_sep = ". "
+        table_str = "Table: {table}. Columns: {columns}"
+        column_sep = ", "
+        column_str_with_values = "{column} ({values})"
+        column_str_without_values = "{column}"
+        value_sep = ", "
+    elif schema_serialization_type == "peteshaw":
+        # see https://github.com/google-research/language/blob/master/language/nqg/tasks/spider/append_schema.py#L42
+        db_id_str = " | {db_id}"
+        table_sep = ""
+        table_str = " | {table} : {columns}"
+        column_sep = " , "
+        column_str_with_values = "{column} ( {values} )"
+        column_str_without_values = "{column}"
+        value_sep = " , "
+    else:
+        raise NotImplementedError
+
+    def get_column_str(table_name: str, column_name: str) -> str:
+        column_name_str = column_name.lower() if normalize_query else column_name
+        if schema_serialization_with_db_content:
+            matches = get_database_matches_from_db_uri(
+                question=question,
+                table_name=table_name,
+                column_name=column_name,
+                db_uri=db_uri,
+                db_schema=db_schema
             )
             if matches:
                 return column_str_with_values.format(column=column_name_str, values=value_sep.join(matches))

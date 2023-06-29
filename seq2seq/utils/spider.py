@@ -40,7 +40,6 @@ def spider_add_serialized_schema(ex: dict, data_training_args: DataTrainingArgum
     )
     return {"serialized_schema": serialized_schema}
 
-
 def spider_pre_process_function(
     batch: dict,
     max_source_length: Optional[int],

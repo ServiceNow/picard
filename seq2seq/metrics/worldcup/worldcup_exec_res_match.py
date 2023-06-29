@@ -1,7 +1,7 @@
 # this file is for compute_metrics in the ...
 """Worldcup exec match metric"""
 
-from typing import Dict, Tuple, List, bool, str, Any
+from typing import Dict, Tuple, List, Any, Set
 from itertools import product
 from collections import defaultdict
 import re
@@ -74,7 +74,7 @@ def get_constraint_permutation(tab1_sets_by_columns: List[Set], result2: List[Tu
 
 
 # check whether two denotations are correct
-def result_eq(result1: List[Tuple], result2: List[Tuple], order_matters: bool) -> Tuple(bool, str):
+def result_eq(result1: List[Tuple], result2: List[Tuple], order_matters: bool) -> Tuple[bool, str]:
     details = '\n'
     if len(result1) == 0 and len(result2) == 0:
         return True, details
@@ -138,22 +138,23 @@ def replace_cur_year(query: str, cur_year=None) -> str:
         "YEAR\s*\(\s*CURDATE\s*\(\s*\)\s*\)\s*", cur_year, query, flags=re.IGNORECASE
     )
 
-def compute_exec_res_match(predictions, references) -> Dict(str, Any):
+def compute_exec_res_match(predictions, references) -> Dict[str, Any]:
     n = len(predictions) * 1.0
-    sum = 0
-    for prediction, reference in zip(predictions, references):
+    acc = 0
+    for _prediction, reference in zip(predictions, references):
         gt_res = get_results(reference['query'], reference['db_uri'], reference['db_schema'])
+        prediction = _prediction.split('|')[-1].strip()
         pred_res = get_results(prediction, reference['db_uri'], reference['db_schema'])
-        res = result_eq(gt_res, pred_res, order_matters=True)
-        sum += int(res)
+        res, _ = result_eq(gt_res, pred_res, order_matters=True)
+        acc += int(res)
     return {
-        "exec_res_match": sum/n
+        "exec_res_match": acc/n
     }
 
 # @TODO implement in async I/O
 @lru_cache(maxsize=1000)
 def get_results(query, db_uri, db_schema):
     db = SQLDatabase.from_uri(db_uri, schema=db_schema)
-    res = db.query_results(query=query)
+    res = db.run(command=query, fetch="many", fmt="list", limit_num=100)
     return res
         

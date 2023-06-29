@@ -49,7 +49,7 @@ class Worldcup(datasets.Metric):
 
     def _info(self):
         if self.config_name not in [
-            "exec_match"
+            "exec_match", "both"
         ]:
             raise KeyError(
                 "You should supply a configuration name selected in " '["exec_match"]'
@@ -89,7 +89,7 @@ class Worldcup(datasets.Metric):
         )
 
     def _compute(self, predictions, references):
-        if self.config_name == "exec_match":
+        if self.config_name == "exec_match" or self.config_name == "both":
             exec_match = compute_exec_res_match(predictions, references)
         else:
             exec_match = dict()

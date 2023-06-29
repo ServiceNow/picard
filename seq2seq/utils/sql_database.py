@@ -473,7 +473,7 @@ class SQLDatabase(object):
                 print('Warning: categorical error')
                 return []
     
-    def run(self, command: str, fetch: str = "all", fmt = "str") -> str:
+    def run(self, command: str, fetch: str = "all", fmt: str = "str", limit_num: int = 100) -> str:
         """Execute a SQL command and return a string representing the results.
 
         If the statement returns rows, a string of the results is returned.
@@ -489,20 +489,28 @@ class SQLDatabase(object):
                     connection.exec_driver_sql(f"SET @@dataset_id='{self._schema}'")
                 else:
                     connection.exec_driver_sql(f"SET search_path TO {self._schema}")
-            cursor = connection.execute(text(command))
-            if cursor.returns_rows:
-                if fetch == "all":
-                    result = cursor.fetchall()
-                elif fetch == "one":
-                    result = cursor.fetchone()[0]
-                else:
-                    raise ValueError(
-                        "Fetch parameter must be either 'one' or 'all'")
-                if fmt == "str":
-                    return str(result)
-                elif fmt == "list":
-                    return list(result)
-        return ""
+                try:
+                    cursor = connection.execute(text(command))
+                    if cursor.returns_rows:
+                        if fetch == "all":
+                            result = cursor.fetchall()
+                        elif fetch == "many":
+                            result = cursor.fetchmany(limit_num)
+                        elif fetch == "one":
+                            result = cursor.fetchone()[0]
+                        else:
+                            raise ValueError(
+                                "Fetch parameter must be either 'one', 'many', or 'all'")
+                        if fmt == "str":
+                            return str(result)
+                        elif fmt == "list":
+                            return list(result)
+                except SQLAlchemyError as e:
+                    if fmt == "str":
+                        return f"Error: {e}"
+                    elif fmt == "list":
+                                return [("Error", str(e))]
+            return ""
 
     def get_table_info_no_throw(self, table_names: Optional[List[str]] = None) -> str:
         """Get information about specified tables.
@@ -567,9 +575,10 @@ class SQLDatabase(object):
         return res
     
     def query_results(self, query, limit_num=100):
-        session = self.Session()
+        if "limit" not in query.lower():
+            query = query.split(';')[0] + f" LIMIT {limit_num}"
         try:
-            result = session.execute(query).fetchmany(limit_num)
+            result = self.run_no_throw()
             return result
         except Exception as e:
             print(f"Error executing query: {query}. Error: {str(e)}")
@@ -622,6 +631,10 @@ def main():
     db = SQLDatabase.from_uri(database_uri, schema='exp_v1')
     res = db.get_table_info_dict(do_sampling=False, with_col_details=False)
     print(db.transform_to_spider_schema_format(res))
+    query = "SELECT * FROM player"
+    res = db.run(query, fetch="many", fmt="list", limit_num=100)
+    print(len(res))
+    
     
 if __name__ == '__main__':
     main()

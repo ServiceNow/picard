@@ -3,7 +3,7 @@ import numpy as np
 from typing import Optional
 from datasets.arrow_dataset import Dataset
 from transformers.tokenization_utils_base import PreTrainedTokenizerBase
-from seq2seq.utils.dataset import DataTrainingArguments, normalize, serialize_schema
+from seq2seq.utils.dataset import DataTrainingArguments, normalize, serialize_schema_from_db_uri
 from seq2seq.utils.trainer import Seq2SeqTrainer, EvalPrediction
 
 
@@ -26,9 +26,8 @@ def worldcup_get_target(
 
 
 def worldcup_add_serialized_schema(ex: dict, data_training_args: DataTrainingArguments) -> dict:
-    serialized_schema = serialize_schema(
+    serialized_schema = serialize_schema_from_db_uri(
         question=ex["question"],
-        # db_path=ex["db_path"],
         db_uri=ex["db_uri"],
         db_schema=ex["db_schema"],
         db_id=ex["db_id"],

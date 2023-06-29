@@ -1,7 +1,7 @@
 {
     "run_name": "t5+picard-spider-eval",
     "model_name_or_path": "tscholak/3vnuv1vf",
-    "dataset": "spider",
+    "dataset": "worldcup_v3",
     "source_prefix": "",
     "schema_serialization_type": "peteshaw",
     "schema_serialization_randomized": false,
@@ -9,14 +9,16 @@
     "schema_serialization_with_db_content": true,
     "normalize_query": true,
     "target_with_db_id": true,
-    "output_dir": "/home/ubuntu/workspace/picard/eval",
-    "cache_dir": "/home/ubuntu/workspace/picard/transformers_cache",
+    "output_dir": "/eval",
+    "cache_dir": "/transformers_cache",
     "do_train": false,
     "do_eval": true,
     "fp16": false,
     "per_device_eval_batch_size": 1,
     "seed": 1,
-    "report_to": ["wandb"],
+    "report_to": [
+        "wandb"
+    ],
     "predict_with_generate": true,
     "num_beams": 4,
     "num_beam_groups": 1,

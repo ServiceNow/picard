@@ -1,6 +1,7 @@
 # Set up logging
 import sys
 import logging
+import os
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -30,6 +31,7 @@ from seq2seq.utils.dataset import DataTrainingArguments, DataArguments
 from seq2seq.utils.dataset_loader import load_dataset
 from seq2seq.utils.spider import SpiderTrainer
 from seq2seq.utils.cosql import CoSQLTrainer
+from seq2seq.utils.worldcup import WorldcupTrainer
 
 
 def main() -> None:
@@ -73,6 +75,7 @@ def main() -> None:
 
     if "wandb" in training_args.report_to and training_args.local_rank <= 0:
         import wandb
+        os.environ['WANDB_MODE'] = "disabled"  # WARNING: un-comment this line only if debugging without W&B sync is wanted
 
         init_args = {}
         if "MLFLOW_EXPERIMENT_ID" in os.environ:
@@ -199,6 +202,8 @@ def main() -> None:
             trainer = SpiderTrainer(**trainer_kwargs)
         elif data_args.dataset in ["cosql", "cosql+spider"]:
             trainer = CoSQLTrainer(**trainer_kwargs)
+        elif data_args.dataset[:8] == 'worldcup':
+            trainer = WorldcupTrainer(**trainer_kwargs)
         else:
             raise NotImplementedError()
 

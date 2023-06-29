@@ -18,6 +18,7 @@ from seq2seq.utils.dataset import (
 )
 from seq2seq.utils.spider import spider_add_serialized_schema, spider_pre_process_function
 from seq2seq.utils.cosql import cosql_add_serialized_schema, cosql_pre_process_function
+from seq2seq.utils.worldcup import worldcup_add_serialized_schema, worldcup_pre_process_function
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,23 @@ def load_dataset(
         data_training_args=data_training_args,
     )
     _spider_pre_process_function = lambda batch, max_source_length, max_target_length: spider_pre_process_function(
+        batch=batch,
+        max_source_length=max_source_length,
+        max_target_length=max_target_length,
+        data_training_args=data_training_args,
+        tokenizer=tokenizer,
+    )
+    _worldcup_dataset_dict: Callable[[], DatasetDict] = lambda: datasets.load.load_dataset(
+        path=data_args.dataset_paths["worldcup"], name=data_args.dataset, cache_dir=model_args.cache_dir
+    )
+    _worldcup_metric: Callable[[], Metric] = lambda: datasets.load.load_metric(
+        path=data_args.metric_paths["worldcup"], config_name=data_args.metric_config, test_suite_db_dir=data_args.test_suite_db_dir
+    )
+    _worldcup_add_serialized_schema = lambda ex: worldcup_add_serialized_schema(
+        ex=ex,
+        data_training_args=data_training_args,
+    )
+    _worldcup_pre_process_function = lambda batch, max_source_length, max_target_length: worldcup_pre_process_function(
         batch=batch,
         max_source_length=max_source_length,
         max_target_length=max_target_length,
@@ -185,6 +203,14 @@ def load_dataset(
             eval_split=cosql_dataset_splits.eval_split,
             test_splits=cosql_dataset_splits.test_splits,
             schemas=schemas,
+        )
+    elif data_args.dataset[:8] == "worldcup":
+        metric = _worldcup_metric()
+        dataset_splits = prepare_splits(
+            dataset_dict=_worldcup_dataset_dict(),
+            add_serialized_schema=_worldcup_add_serialized_schema,
+            pre_process_function=_worldcup_pre_process_function,
+            **_prepare_splits_kwargs,
         )
     else:
         raise NotImplementedError()
