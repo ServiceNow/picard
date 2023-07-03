@@ -44,7 +44,7 @@
             },
             "justMyCode": false,
             "args": [
-                "configs/worldcup_train.json"
+                "configs/worldcup_train_large.json"
             ]
         },
         {

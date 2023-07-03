@@ -583,8 +583,6 @@ class SQLDatabase(object):
         except Exception as e:
             print(f"Error executing query: {query}. Error: {str(e)}")
             return ['Error', str(e)]
-        finally:
-            session.close()
 
     def transform_to_spider_schema_format(self, table_info_dict: dict) -> dict:
         table_names_original = []
@@ -621,7 +619,7 @@ class SQLDatabase(object):
         }
     
 
-def main():
+def main(): # not working
     host = 'testbed.inode.igd.fraunhofer.de'
     port = 18001
     database = 'world_cup'
@@ -634,7 +632,20 @@ def main():
     query = "SELECT * FROM player"
     res = db.run(query, fetch="many", fmt="list", limit_num=100)
     print(len(res))
-    
+
+def main_2(): # working
+    host = '160.85.252.185'
+    port = 18001
+    database = 'world_cup'
+    username = 'inode_read'
+    password = 'W8BYqhSemzyZ64YD'
+    database_uri = f'postgresql://{username}:{password}@{host}:{str(port)}/{database}'
+    db = SQLDatabase.from_uri(database_uri, schema='exp_v1')
+    res = db.get_table_info_dict(do_sampling=False, with_col_details=False)
+    print(db.transform_to_spider_schema_format(res))
+    query = "SELECT count(*) FROM club"
+    res = db.run(query, fetch="many", fmt="list", limit_num=100)
+    print(len(res))
     
 if __name__ == '__main__':
-    main()
+    main_2()

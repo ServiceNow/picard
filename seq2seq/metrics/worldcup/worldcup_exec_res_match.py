@@ -142,19 +142,22 @@ def compute_exec_res_match(predictions, references) -> Dict[str, Any]:
     n = len(predictions) * 1.0
     acc = 0
     for _prediction, reference in zip(predictions, references):
-        gt_res = get_results(reference['query'], reference['db_uri'], reference['db_schema'])
-        prediction = _prediction.split('|')[-1].strip()
-        pred_res = get_results(prediction, reference['db_uri'], reference['db_schema'])
-        res, _ = result_eq(gt_res, pred_res, order_matters=True)
-        acc += int(res)
+        try:
+            gt_res = get_results(reference['query'], reference['db_uri'], reference['db_schema'])
+            prediction = _prediction.split('|')[-1].strip()
+            pred_res = get_results(prediction, reference['db_uri'], reference['db_schema'])
+            res, _ = result_eq(gt_res, pred_res, order_matters=True)
+        except Exception as e:
+            res = False
+        acc += int(res)  
     return {
-        "exec_res_match": acc/n
+        "exec_match": acc/n
     }
 
 # @TODO implement in async I/O
 @lru_cache(maxsize=1000)
 def get_results(query, db_uri, db_schema):
     db = SQLDatabase.from_uri(db_uri, schema=db_schema)
-    res = db.run(command=query, fetch="many", fmt="list", limit_num=100)
+    res = db.run(command=query, fetch="many", fmt="list", limit_num=50)
     return res
         

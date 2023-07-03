@@ -10,17 +10,20 @@ from datasets.info import DatasetInfo
 from datasets.utils.download_manager import DownloadManager
 from seq2seq.utils.sql_database import SQLDatabase
 from dotenv import dotenv_values
+from itertools import product
 db_config = dotenv_values('.env')
 
 logger = datasets.logging.get_logger(__name__)
 
 DB_SCHEMAS = ['exp_v1', 'exp_v2', 'exp_v3']
 
-_VERSION = "1.0.0"
+_VERSION = "1.1.0"
 _CITATION = ""
 _DESCRIPTION = "A real world world cup database in different data models"
 _HOMEPAGE = ""
 _LICENSE = ""
+_CONFIGS = ['v1', 'v2', 'v3']
+_TRAIN_SPLITS = ['100', '200', '300']
 
 # _URL = "https://drive.google.com/uc?export=download&id=1kbMHZXHdX9s1Jq7tmhKiYNPH1quMpcbA"
 _URL = "https://drive.google.com/uc?export=download&id=1kbMHZXHdX9s1Jq7tmhKiYNPH1quMpcbA"
@@ -32,9 +35,10 @@ def load_db_config(_schema=DB_SCHEMAS):
     username = db_config["WORLDCUP_CUP_DB_USERNAME"]
     password = db_config["WORLDCUP_CUP_DB_PASS"]
     database_uri = f'postgresql://{username}:{password}@{host}:{str(port)}/{database}'
+    train_splits = _TRAIN_SPLITS
     res = locals()
-    _configs = ['v1', 'v2', 'v3']
-    res['schema'] =  dict(((c, s) for c, s in zip(_configs, _schema)))
+    
+    res['schema'] =  dict(((c, s) for c, s in zip(_CONFIGS, _schema)))
     return res
 
 class WorldCupConfig(datasets.BuilderConfig):
@@ -66,23 +70,11 @@ class WorldCup(datasets.GeneratorBasedBuilder):
     
     BUILDER_CONFIGS = [
         WorldCupConfig(
-            name="worldcup_v1",
-            data_dir = "v1",
-            description="World Cup Database V1",
+            name=f"worldcup_{config}_{train_split}",
+            data_dir = f"{config}/{train_split}",
+            description = f"World Cup Database {config} with {train_split} sampled trainning data",
             url = _URL
-        ),
-        WorldCupConfig(
-            name="worldcup_v2",
-            data_dir = "v2",
-            description="World Cup Database V2",
-            url = _URL
-        ),
-        WorldCupConfig(
-            name="worldcup_v3",
-            data_dir = "v3",
-            description="World Cup Database V3",
-            url = _URL
-        )
+        ) for config, train_split in product(_CONFIGS, _TRAIN_SPLITS)
     ]
     
     def __init__(self, *args, writer_batch_size = None, **kwargs) -> None:
