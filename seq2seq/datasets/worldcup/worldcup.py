@@ -61,7 +61,7 @@ class WorldCupConfig(datasets.BuilderConfig):
         self.url = url
         db_config_dict = load_db_config()
         self.db_uri = db_config_dict['database_uri']
-        self.db_schema = db_config_dict['schema'][data_dir]
+        self.db_schema = db_config_dict['schema'][data_dir.split('/')[0]]
         
     
 
