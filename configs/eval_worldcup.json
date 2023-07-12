@@ -1,7 +1,7 @@
 {
-    "run_name": "t5+picard-spider-eval",
+    "run_name": "t5+picard-worldcup-v1-zero-eval",
     "model_name_or_path": "tscholak/cxmefzzi",
-    "dataset": "worldcup_v1",
+    "dataset": "worldcup_v1_300",
     "source_prefix": "",
     "schema_serialization_type": "peteshaw",
     "schema_serialization_randomized": false,
@@ -9,7 +9,7 @@
     "schema_serialization_with_db_content": false,
     "normalize_query": true,
     "target_with_db_id": true,
-    "output_dir": "/eval",
+    "output_dir": "./eval",
     "cache_dir": "/transformers_cache",
     "do_train": false,
     "do_eval": true,
@@ -23,7 +23,7 @@
     "num_beams": 4,
     "num_beam_groups": 1,
     "diversity_penalty": 0.0,
-    "max_val_samples": 1034,
+    "max_val_samples": 100,
     "use_picard": true,
     "launch_picard": true,
     "picard_mode": "parse_with_guards",
@@ -32,5 +32,6 @@
     "eval_accumulation_steps": 1,
     "metric_config": "both",
     "val_max_target_length": 512,
-    "val_max_time": 1200
+    "val_max_time": 1200,
+    "deepspeed": "configs/ds_config_4gpu_z3.json"
 }

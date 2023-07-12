@@ -1,5 +1,5 @@
 {
-    "run_name": "t5-3b-worldcup_v1_300",
+    "run_name": "t5-3b-worldcup_v1_300_200epochs",
     "model_name_or_path": "tscholak/cxmefzzi",
     "dataset": "worldcup_v1_300",
     "source_prefix": "",
@@ -26,7 +26,7 @@
     "lr_scheduler_type": "constant",
     "warmup_ratio": 0.0,
     "warmup_steps": 0,
-    "seed": 1,
+    "seed": 42,
     "report_to": [
         "wandb"
     ],
