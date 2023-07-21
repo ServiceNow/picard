@@ -1,7 +1,7 @@
 {
-    "run_name": "t5+picard-worldcup-v2-zero-eval",
-    "model_name_or_path": "tscholak/cxmefzzi",
-    "dataset": "worldcup_v2_300",
+    "run_name": "t5+picard-worldcup-v1-100-eval",
+    "model_name_or_path": "/train/archive/t5-3b-worldcup_v1_100/checkpoint-98",
+    "dataset": "worldcup_v1_100",
     "source_prefix": "",
     "schema_serialization_type": "peteshaw",
     "schema_serialization_randomized": false,
