@@ -75,7 +75,7 @@ def main() -> None:
 
     if "wandb" in training_args.report_to and training_args.local_rank <= 0:
         import wandb
-        # os.environ['WANDB_MODE'] = "disabled"  # WARNING: un-comment this line only if debugging without W&B sync is wanted
+        os.environ['WANDB_MODE'] = "disabled"  # WARNING: un-comment this line only if debugging without W&B sync is wanted
 
         init_args = {}
         if "MLFLOW_EXPERIMENT_ID" in os.environ:
