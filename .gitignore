@@ -151,3 +151,8 @@ wandb/*
 database/*
 .DS_Store
 third_party/*
+.cabal
+.cache
+.config
+.local
+*.whl

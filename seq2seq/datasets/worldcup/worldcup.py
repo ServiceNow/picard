@@ -74,7 +74,7 @@ class WorldCup(datasets.GeneratorBasedBuilder):
             data_dir = f"{config}/{train_split}",
             description = f"World Cup Database {config} with {train_split} sampled trainning data",
             url = _URL
-        ) for config, train_split in product(_CONFIGS, _TRAIN_SPLITS)
+        ) for config, train_split in list(product(_CONFIGS, _TRAIN_SPLITS)) + [('v3', 859)]
     ]
     
     def __init__(self, *args, writer_batch_size = None, **kwargs) -> None:

@@ -438,9 +438,12 @@ def serialize_schema_from_db_uri(
     db_id: str,
     db_column_names: Dict[str, str],
     db_table_names: List[str],
+    db_primary_keys: Dict[str, List],
+    db_foreign_keys: Dict[str, List],
     schema_serialization_type: str = "peteshaw",
     schema_serialization_randomized: bool = False,
     schema_serialization_with_db_id: bool = True,
+    schema_serialization_with_keys: bool = False,
     schema_serialization_with_db_content: bool = False,
     normalize_query: bool = True,
 ) -> str:
@@ -448,6 +451,7 @@ def serialize_schema_from_db_uri(
         db_id_str = "Database: {db_id}. "
         table_sep = ". "
         table_str = "Table: {table}. Columns: {columns}"
+        table_keys = "Primary Keys: {pks}. Foreign Keys: {fks}"
         column_sep = ", "
         column_str_with_values = "{column} ({values})"
         column_str_without_values = "{column}"
@@ -457,6 +461,7 @@ def serialize_schema_from_db_uri(
         db_id_str = " | {db_id}"
         table_sep = ""
         table_str = " | {table} : {columns}"
+        table_keys = " | PK: {pks} | FK: {fks}"
         column_sep = " , "
         column_str_with_values = "{column} ( {values} )"
         column_str_without_values = "{column}"
@@ -501,6 +506,10 @@ def serialize_schema_from_db_uri(
     ]
     if schema_serialization_randomized:
         random.shuffle(tables)
+    if schema_serialization_with_keys:
+        pks = ['.'.join([db_table_names[db_column_names['table_id'][pk]], db_column_names['column_name'][pk]]) for pk in db_primary_keys['column_id']]
+        fks = ['='.join(['.'.join([db_table_names[db_column_names['table_id'][fk1]], db_column_names['column_name'][fk1]]), '.'.join([db_table_names[db_column_names['table_id'][fk2]], db_column_names['column_name'][fk2]])]) for fk1, fk2 in zip(db_foreign_keys['column_id'], db_foreign_keys['other_column_id'])]
+        tables = (' ').join(tables + [table_keys.format(pks=column_sep.join(pks), fks=column_sep.join(fks))])
     if schema_serialization_with_db_id:
         serialized_schema = db_id_str.format(db_id=db_id) + table_sep.join(tables)
     else:
