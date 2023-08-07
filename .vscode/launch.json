@@ -91,6 +91,21 @@
             "args": [
                 "configs/eval.json"
             ]
+        },
+        {
+            "name": "Python: train spider",
+            "type": "python",
+            "request": "launch",
+            "program": "seq2seq/run_seq2seq.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}${pathSeparator}"
+            },
+            "justMyCode": false,
+            "args": [
+                "configs/train_small.json"
+            ]
         }
     ]
 }

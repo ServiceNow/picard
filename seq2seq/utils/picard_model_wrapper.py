@@ -11,8 +11,8 @@ from tenacity import retry, wait_random_exponential, stop_after_delay, before_sl
 import torch
 from transformers import LogitsProcessorList
 from transformers.configuration_utils import PretrainedConfig
-from transformers.generation_utils import GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput
-from transformers.generation_logits_process import LogitsProcessor
+from transformers.generation.utils import GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput
+from transformers.generation.logits_process import LogitsProcessor
 from transformers.file_utils import copy_func
 from transformers.models.auto.auto_factory import _get_model_class
 from transformers.models.auto.configuration_auto import AutoConfig
