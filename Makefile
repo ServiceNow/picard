@@ -1,6 +1,6 @@
 GIT_HEAD_REF := $(shell git rev-parse HEAD)
 
-BASE_IMAGE := pytorch/pytorch:1.9.0-cuda11.1-cudnn8-devel
+BASE_IMAGE := pytorch/pytorch:2.0.1-cuda11.7-cudnn8-devel
 
 DEV_IMAGE_NAME := text-to-sql-dev
 TRAIN_IMAGE_NAME := text-to-sql-train
